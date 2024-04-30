@@ -1,0 +1,14 @@
+@extern
+fun memchr(s *void, c *void, n int64) *void;
+
+@extern
+fun memcmp(s1 *void, s2 *void, n int64) int32;
+
+@extern
+fun memcpy(dest *void, src *void, n int64) *void;
+
+@extern
+fun memmove(dest *void, src *void, n int64) *void;
+
+@extern
+fun memset(ptr *void, c int32, n int64) *void;

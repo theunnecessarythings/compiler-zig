@@ -1,0 +1,4 @@
+fun main() int64 {
+    var array : [0]int32 = [];
+    return 0;
+}

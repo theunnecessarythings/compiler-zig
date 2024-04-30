@@ -1,0 +1,9 @@
+struct Node {
+    function fun (*Node) *Node;
+    function_function fun (fun (*Node) *Node) *Node;
+}
+
+fun main() int64 {
+    var node : Node;
+    return 0;
+}

@@ -1,0 +1,10 @@
+load {
+    "_loads_one"
+    "_loads_two"
+}
+
+fun main() int64 {
+    var s = sum(1, 1);
+    var p = sum(1, 1);
+    return 0;
+}

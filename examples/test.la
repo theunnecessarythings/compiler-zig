@@ -1,0 +1,6 @@
+import "cstdio"
+
+fun main() int64 {
+    printf("%d\n", 1);
+    return 0;
+}

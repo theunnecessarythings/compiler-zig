@@ -1,7 +1,6 @@
 const std = @import("std");
 const tokenizer = @import("tokenizer.zig");
 const TokenSpan = tokenizer.TokenSpan;
-const log = @import("data_structures.zig").log;
 
 pub const SourceManager = struct {
     allocator: std.mem.Allocator,
@@ -105,11 +104,11 @@ pub const DiagnosticEngine = struct {
     }
 
     pub fn reportDiagnostics(self: *Self, level: DiagnosticLevel) void {
-        log("{s}s: {d}", .{
+        std.debug.print("{s}s: {d}", .{
             diagnosticLevelLiteral(level),
             self.levelCount(level),
         });
-        log("====================================\n", .{});
+        std.debug.print("====================================\n", .{});
         if (self.diagnostics.get(level)) |diagnostics| {
             for (diagnostics.items) |*diagnostic| {
                 self.reportDiagnostic(diagnostic);
@@ -139,7 +138,7 @@ pub const DiagnosticEngine = struct {
         const file_name = self.source_manager.resolveSourcePath(location.file_id);
         const line_number = location.line_number;
         const source_line = self.readFileLine(file_name.?, line_number) catch {
-            log("Failed to read source file line\n", .{});
+            std.debug.print("Failed to read source file line\n", .{});
             return;
         };
 
@@ -178,3 +177,48 @@ pub const DiagnosticEngine = struct {
         return kind_diagnostics.?.items.len;
     }
 };
+
+pub const LogType = enum {
+    Parser,
+    TypeChecker,
+    Tokenizer,
+    Codegen,
+    General,
+};
+
+pub const LogLevel = enum {
+    Debug,
+    Info,
+    Warning,
+    Error,
+};
+
+pub const LogOptions = struct {
+    module: LogType = LogType.General,
+    log_level: LogLevel = LogLevel.Info,
+
+    pub var enable_parser_logging: bool = false;
+    pub var enable_typechecker_logging: bool = false;
+    pub var enable_tokenizer_logging: bool = false;
+    pub var enable_codegen_logging: bool = false;
+    pub var enable_general_logging: bool = false;
+};
+
+fn logfn(loglevel: LogLevel, comptime fmt: []const u8, args: anytype) void {
+    switch (loglevel) {
+        .Debug => std.log.debug(fmt, args),
+        .Info => std.log.info(fmt, args),
+        .Warning => std.log.warn(fmt, args),
+        .Error => std.log.err(fmt, args),
+    }
+}
+
+pub fn log(comptime fmt: []const u8, args: anytype, log_options: LogOptions) void {
+    switch (log_options.module) {
+        .Parser => if (LogOptions.enable_parser_logging) logfn(log_options.log_level, fmt, args),
+        .TypeChecker => if (LogOptions.enable_typechecker_logging) logfn(log_options.log_level, fmt, args),
+        .Tokenizer => if (LogOptions.enable_tokenizer_logging) logfn(log_options.log_level, fmt, args),
+        .Codegen => if (LogOptions.enable_codegen_logging) logfn(log_options.log_level, fmt, args),
+        .General => if (LogOptions.enable_general_logging) logfn(log_options.log_level, fmt, args),
+    }
+}

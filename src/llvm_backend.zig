@@ -8,9 +8,10 @@ const ast = @import("ast.zig");
 const types = @import("types.zig");
 const tokenizer = @import("tokenizer.zig");
 const ds = @import("data_structures.zig");
-const Error = @import("diagnostics.zig").Error;
 const CompilationUnit = ast.CompilationUnit;
-const log = ds.log;
+const diagnostics = @import("diagnostics.zig");
+const Error = diagnostics.Error;
+const log = diagnostics.log;
 
 const PointerType = enum { Alloca, Load, GEP };
 
@@ -232,7 +233,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn compile(self: *Self, module_name: []const u8, compilation_unit: *CompilationUnit) !llvm_types.LLVMModuleRef {
-        log("Compiling module '{s}'", .{module_name});
+        log("Compiling module '{s}'", .{module_name}, .{ .module = .Codegen });
         self.llvm_module = llvm_core.LLVMModuleCreateWithNameInContext(self.cStr(module_name), llvm_context);
 
         try self.updateIntrinsics();
@@ -245,7 +246,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitBlockStatement(self: *Self, node: *ast.BlockStatement) !*ds.Any {
-        log("Visiting block statement", .{});
+        log("Visiting block statement", .{}, .{ .module = .Codegen });
         try self.pushAllocaInstScope();
         try self.defer_calls_stack.items[self.defer_calls_stack.items.len - 1].pushNewScope();
         var should_execute_defers = true;
@@ -273,7 +274,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitFieldDeclaration(self: *Self, node: *ast.FieldDeclaration) !*ds.Any {
-        log("Visiting field declaration", .{});
+        log("Visiting field declaration", .{}, .{ .module = .Codegen });
         const var_name = node.name.literal;
         var field_type = node.field_type;
         if (field_type.typeKind() == .GenericParameter) {
@@ -357,7 +358,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitDestructuringDeclaration(self: *Self, node: *ast.DestructuringDeclaration) !*ds.Any {
-        log("Visiting destructuring declaration", .{});
+        log("Visiting destructuring declaration", .{}, .{ .module = .Codegen });
         const tuple_value = try self.llvmNodeValue(try node.value.accept(self.visitor));
         const tuple_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
 
@@ -383,13 +384,13 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitConstDeclaration(self: *Self, node: *ast.ConstDeclaration) !*ds.Any {
-        log("Visiting const declaration", .{});
+        log("Visiting const declaration", .{}, .{ .module = .Codegen });
         _ = node;
         return self.allocReturn(ds.Any, .Void);
     }
 
     pub fn visitFunctionPrototype(self: *Self, node: *ast.FunctionPrototype) !*ds.Any {
-        log("Visiting function prototype", .{});
+        log("Visiting function prototype", .{}, .{ .module = .Codegen });
         const parameters = node.parameters;
         const parameters_size = parameters.items.len;
         var arguments = std.ArrayList(llvm_types.LLVMTypeRef).init(self.allocator);
@@ -425,12 +426,12 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitOperatorFunctionDeclaration(self: *Self, node: *ast.OperatorFunctionDeclaration) !*ds.Any {
-        log("Visiting operator function declaration", .{});
+        log("Visiting operator function declaration", .{}, .{ .module = .Codegen });
         return node.function.accept(self.visitor);
     }
 
     pub fn visitIntrinsicPrototype(self: *Self, node: *ast.IntrinsicPrototype) !*ds.Any {
-        log("Visiting intrinsic prototype", .{});
+        log("Visiting intrinsic prototype", .{}, .{ .module = .Codegen });
         const name = node.name.literal;
         const prototype_parameters = node.parameters;
         var parameters_types = std.ArrayList(llvm_types.LLVMTypeRef).init(self.allocator);
@@ -453,7 +454,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitFunctionDeclaration(self: *Self, node: *ast.FunctionDeclaration) !*ds.Any {
-        log("Visiting function declaration", .{});
+        log("Visiting function declaration", .{}, .{ .module = .Codegen });
         self.is_on_global_scope = false;
         const prototype = node.prototype;
         const name = prototype.name.literal;
@@ -491,7 +492,7 @@ pub const LLVMBackend = struct {
 
         if (body.getAstNodeType() == .Block) {
             const statements = body.block_statement.statements;
-            log("Return Statement: {any}", .{statements.getLast().getAstNodeType()});
+            log("Return Statement: {any}", .{statements.getLast().getAstNodeType()}, .{ .module = .Codegen });
             if (statements.items.len == 0 or (statements.getLast().getAstNodeType() != .Return)) {
                 _ = llvm_core.LLVMBuildUnreachable(builder);
             }
@@ -506,7 +507,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitStructDeclaration(self: *Self, node: *ast.StructDeclaration) !*ds.Any {
-        log("Visiting struct declaration", .{});
+        log("Visiting struct declaration", .{}, .{ .module = .Codegen });
         const struct_type = node.struct_type;
         if (struct_type.Struct.is_generic) {
             return self.allocReturn(ds.Any, .Void);
@@ -519,12 +520,12 @@ pub const LLVMBackend = struct {
 
     pub fn visitEnumDeclaration(self: *Self, node: *ast.EnumDeclaration) !*ds.Any {
         _ = node;
-        log("Visiting enum declaration", .{});
+        log("Visiting enum declaration", .{}, .{ .module = .Codegen });
         return self.allocReturn(ds.Any, .Void);
     }
 
     pub fn visitIfStatement(self: *Self, node: *ast.IfStatement) !*ds.Any {
-        log("Visiting if statement", .{});
+        log("Visiting if statement", .{}, .{ .module = .Codegen });
         const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
         const start_block = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("if.start"));
         const end_block = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("if.end"));
@@ -573,7 +574,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitSwitchExpression(self: *Self, node: *ast.SwitchExpression) !*ds.Any {
-        log("Visiting switch expression", .{});
+        log("Visiting switch expression", .{}, .{ .module = .Codegen });
         if (self.isGlobalBlock() and node.isConstant()) {
             const ret = try self.resolveConstantSwitchExpression(node);
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
@@ -637,7 +638,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitForRangeStatement(self: *Self, node: *ast.ForRangeStatement) !*ds.Any {
-        log("Visiting for range statement", .{});
+        log("Visiting for range statement", .{}, .{ .module = .Codegen });
         var start = try self.llvmResolveValue(try node.range_start.accept(self.visitor));
         var end = try self.llvmResolveValue(try node.range_end.accept(self.visitor));
 
@@ -702,7 +703,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitForEachStatement(self: *Self, node: *ast.ForEachStatement) !*ds.Any {
-        log("Visiting for each statement", .{});
+        log("Visiting for each statement", .{}, .{ .module = .Codegen });
         var collection_expression = node.collection;
         const collection_exp_type = collection_expression.getTypeNode().?;
         const collection_value = try collection_expression.accept(self.visitor);
@@ -815,14 +816,14 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitForeverStatement(self: *Self, node: *ast.ForEverStatement) !*ds.Any {
-        log("Visiting forever statement", .{});
+        log("Visiting forever statement", .{}, .{ .module = .Codegen });
         _ = node;
         _ = self;
         return Error.NotImplemented;
     }
 
     pub fn visitWhileStatement(self: *Self, node: *ast.WhileStatement) !*ds.Any {
-        log("Visiting while statement", .{});
+        log("Visiting while statement", .{}, .{ .module = .Codegen });
         const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
         const condition_branch = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("while.condition"));
         const loop_branch = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("while.loop"));
@@ -865,7 +866,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitSwitchStatement(self: *Self, node: *ast.SwitchStatement) !*ds.Any {
-        log("Visiting switch statement", .{});
+        log("Visiting switch statement", .{}, .{ .module = .Codegen });
         const blocks_count = node.cases.items.len;
         var llvm_branches = std.ArrayList(llvm_types.LLVMBasicBlockRef).init(self.allocator);
         var llvm_values = std.ArrayList(llvm_types.LLVMValueRef).init(self.allocator);
@@ -935,7 +936,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitReturnStatement(self: *Self, node: *ast.ReturnStatement) !*ds.Any {
-        log("Visiting return statement", .{});
+        log("Visiting return statement", .{}, .{ .module = .Codegen });
         self.has_return_statement = true;
 
         if (!node.has_value) {
@@ -978,7 +979,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitDeferStatement(self: *Self, node: *ast.DeferStatement) !*ds.Any {
-        log("Visiting defer statement", .{});
+        log("Visiting defer statement", .{}, .{ .module = .Codegen });
         const call_expression = node.call_expression;
         const callee = call_expression.call_expression.callee.literal_expression;
         const callee_literal = callee.name.literal;
@@ -1049,7 +1050,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitBreakStatement(self: *Self, node: *ast.BreakStatement) !*ds.Any {
-        log("Visiting break statement", .{});
+        log("Visiting break statement", .{}, .{ .module = .Codegen });
         self.has_break_or_continue_statement = true;
         for (1..node.times) |_| {
             _ = self.break_blocks_stack.pop();
@@ -1059,7 +1060,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitContinueStatement(self: *Self, node: *ast.ContinueStatement) !*ds.Any {
-        log("Visiting continue statement", .{});
+        log("Visiting continue statement", .{}, .{ .module = .Codegen });
         self.has_break_or_continue_statement = true;
         for (1..node.times) |_| {
             _ = self.continue_blocks_stack.pop();
@@ -1070,13 +1071,13 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitExpressionStatement(self: *Self, node: *ast.ExpressionStatement) !*ds.Any {
-        log("Visiting expression statement", .{});
+        log("Visiting expression statement", .{}, .{ .module = .Codegen });
         _ = try node.expression.accept(self.visitor);
         return self.allocReturn(ds.Any, .Void);
     }
 
     pub fn visitIfExpression(self: *Self, node: *ast.IfExpression) !*ds.Any {
-        log("Visiting if expression", .{});
+        log("Visiting if expression", .{}, .{ .module = .Codegen });
         if (self.isGlobalBlock() and node.isConstant()) {
             const ret = try self.resolveConstantIfExpression(node);
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
@@ -1124,7 +1125,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitTupleExpression(self: *Self, node: *ast.TupleExpression) !*ds.Any {
-        log("Visiting tuple expression", .{});
+        log("Visiting tuple expression", .{}, .{ .module = .Codegen });
         const tuple_type = try self.llvmTypeFromLangType(node.value_type.?);
         const alloc_inst = llvm_core.LLVMBuildAlloca(builder, tuple_type, self.cStr("tuple"));
 
@@ -1142,7 +1143,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitAssignExpression(self: *Self, node: *ast.AssignExpression) !*ds.Any {
-        log("Visiting assign expression", .{});
+        log("Visiting assign expression", .{}, .{ .module = .Codegen });
         const left_node = node.left;
 
         switch (left_node.*) {
@@ -1249,7 +1250,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitBinaryExpression(self: *Self, node: *ast.BinaryExpression) !*ds.Any {
-        log("Visiting binary expression", .{});
+        log("Visiting binary expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
 
@@ -1288,7 +1289,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitBitwiseExpression(self: *Self, node: *ast.BitwiseExpression) !*ds.Any {
-        log("Visiting bitwise expression", .{});
+        log("Visiting bitwise expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
 
@@ -1333,7 +1334,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitComparisonExpression(self: *Self, node: *ast.ComparisonExpression) !*ds.Any {
-        log("Visiting comparison expression", .{});
+        log("Visiting comparison expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
         const op = node.operator_token.kind;
@@ -1395,7 +1396,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitLogicalExpression(self: *Self, node: *ast.LogicalExpression) !*ds.Any {
-        log("Visiting logical expression", .{});
+        log("Visiting logical expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
 
@@ -1424,7 +1425,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitPrefixUnaryExpression(self: *Self, node: *ast.PrefixUnaryExpression) !*ds.Any {
-        log("Visiting prefix unary expression", .{});
+        log("Visiting prefix unary expression", .{}, .{ .module = .Codegen });
         const operand = node.right;
         const operator_kind = node.operator_token.kind;
 
@@ -1520,7 +1521,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitPostfixUnaryExpression(self: *Self, node: *ast.PostfixUnaryExpression) !*ds.Any {
-        log("Visiting postfix unary expression", .{});
+        log("Visiting postfix unary expression", .{}, .{ .module = .Codegen });
         const operand = node.right;
         const operator_kind = node.operator_token.kind;
 
@@ -1553,7 +1554,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitCallExpression(self: *Self, node: *ast.CallExpression) !*ds.Any {
-        log("Visiting call expression", .{});
+        log("Visiting call expression", .{}, .{ .module = .Codegen });
         const callee_ast_node_type = node.callee.getAstNodeType();
 
         if (callee_ast_node_type == .Call) {
@@ -1588,7 +1589,7 @@ pub const LLVMBackend = struct {
         if (callee_ast_node_type == .Literal) {
             const callee = node.callee.literal_expression;
             var callee_name = callee.name.literal;
-            log("Callee name: {s}", .{callee_name});
+            log("Callee name: {s}", .{callee_name}, .{ .module = .Codegen });
             var function = try self.lookupFunction(callee_name);
 
             if (function == null and self.function_declarations.contains(callee_name)) {
@@ -1790,7 +1791,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitInitializeExpression(self: *Self, node: *ast.InitExpression) !*ds.Any {
-        log("Visiting initialize expression", .{});
+        log("Visiting initialize expression", .{}, .{ .module = .Codegen });
         var struct_type: llvm_types.LLVMTypeRef = undefined;
         if (node.value_type.?.typeKind() == .GenericStruct) {
             const generic = node.value_type.?.GenericStruct;
@@ -1822,7 +1823,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitLambdaExpression(self: *Self, node: *ast.LambdaExpression) !*ds.Any {
-        log("Visiting lambda expression", .{});
+        log("Visiting lambda expression", .{}, .{ .module = .Codegen });
         const lambda_name = try std.fmt.allocPrint(self.allocator, "_lambda{d}", .{self.lambda_unique_id});
         self.lambda_unique_id += 1;
         const function_ptr_type = node.getTypeNode().?.Pointer;
@@ -1883,7 +1884,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitDotExpression(self: *Self, node: *ast.DotExpression) !*ds.Any {
-        log("Visiting dot expression", .{});
+        log("Visiting dot expression", .{}, .{ .module = .Codegen });
         const callee = node.callee;
         const callee_type = callee.getTypeNode().?;
         const callee_llvm_type = try self.llvmTypeFromLangType(callee_type);
@@ -1940,7 +1941,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitCastExpression(self: *Self, node: *ast.CastExpression) !*ds.Any {
-        log("Visiting cast expression", .{});
+        log("Visiting cast expression", .{}, .{ .module = .Codegen });
         const value = try self.llvmResolveValue(try node.value.accept(self.visitor));
         const value_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
         const target_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
@@ -2002,7 +2003,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitTypeSizeExpression(self: *Self, node: *ast.TypeSizeExpression) !*ds.Any {
-        log("Visiting type size expression", .{});
+        log("Visiting type size expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value_type.?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
         const type_alloc_size = llvm_target.LLVMSizeOfTypeInBits(data_layout, llvm_type);
@@ -2011,7 +2012,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitTypeAlignExpression(self: *Self, node: *ast.TypeAlignExpression) !*ds.Any {
-        log("Visiting type align expression", .{});
+        log("Visiting type align expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value_type.?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
         const align_ = llvm_target.LLVMABIAlignmentOfType(data_layout, llvm_type);
@@ -2020,7 +2021,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitValueSizeExpression(self: *Self, node: *ast.ValueSizeExpression) !*ds.Any {
-        log("Visiting value size expression", .{});
+        log("Visiting value size expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
         const type_alloc_size = llvm_target.LLVMSizeOfTypeInBits(data_layout, llvm_type);
@@ -2029,25 +2030,25 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitIndexExpression(self: *Self, node: *ast.IndexExpression) !*ds.Any {
-        log("Visiting index expression", .{});
+        log("Visiting index expression", .{}, .{ .module = .Codegen });
         const index = try self.llvmResolveValue(try node.index.accept(self.visitor));
         const ret = try self.accessArrayElement(node.value, index);
-        log("Index expression resolved", .{});
+        log("Index expression resolved", .{}, .{ .module = .Codegen });
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
     pub fn visitEnumAccessExpression(self: *Self, node: *ast.EnumAccessExpression) !*ds.Any {
-        log("Visiting enum access expression", .{});
+        log("Visiting enum access expression", .{}, .{ .module = .Codegen });
         const element_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const element_index = llvm_core.LLVMConstInt(element_type, @intCast(node.enum_element_index), 0);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = element_index });
     }
 
     pub fn visitLiteralExpression(self: *Self, node: *ast.LiteralExpression) !*ds.Any {
-        log("Visiting literal expression", .{});
+        log("Visiting literal expression", .{}, .{ .module = .Codegen });
         const name = node.name.literal;
         self.alloca_inst_table.printKeys();
-        log("Literal name: {s}", .{name});
+        log("Literal name: {s}", .{name}, .{ .module = .Codegen });
         const alloca_inst = self.alloca_inst_table.lookup(name);
         if (alloca_inst != null) {
             return alloca_inst.?;
@@ -2058,14 +2059,14 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitNumberExpression(self: *Self, node: *ast.NumberExpression) !*ds.Any {
-        log("Visiting number expression", .{});
+        log("Visiting number expression", .{}, .{ .module = .Codegen });
         const number_type = node.getTypeNode().?;
         const value = try self.llvmNumberValue(node.value.literal, number_type.Number.number_kind);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = value });
     }
 
     pub fn visitArrayExpression(self: *Self, node: *ast.ArrayExpression) !*ds.Any {
-        log("Visiting array expression", .{});
+        log("Visiting array expression", .{}, .{ .module = .Codegen });
         const node_values = node.values;
         const size = node_values.items.len;
         if (node.isConstant()) {
@@ -2105,7 +2106,7 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitVectorExpression(self: *Self, node: *ast.VectorExpression) !*ds.Any {
-        log("Visiting vector expression", .{});
+        log("Visiting vector expression", .{}, .{ .module = .Codegen });
         const array = node.array;
         const array_type = array.value_type.?.StaticArray;
         const element_type = array_type.element_type.?;
@@ -2197,24 +2198,24 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitStringExpression(self: *Self, node: *ast.StringExpression) !*ds.Any {
-        log("Visiting string expression", .{});
+        log("Visiting string expression", .{}, .{ .module = .Codegen });
         return self.resolveConstantStringExpression(node.value.literal);
     }
 
     pub fn visitCharacterExpression(self: *Self, node: *ast.CharacterExpression) !*ds.Any {
-        log("Visiting character expression", .{});
+        log("Visiting character expression", .{}, .{ .module = .Codegen });
         const value = node.value.literal[0];
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = llvm_core.LLVMConstInt(llvm_int8_type, @intCast(value), 0) });
     }
 
     pub fn visitBooleanExpression(self: *Self, node: *ast.BoolExpression) !*ds.Any {
-        log("Visiting boolean expression", .{});
+        log("Visiting boolean expression", .{}, .{ .module = .Codegen });
         const ret = llvm_core.LLVMConstInt(llvm_int1_type, @intFromBool(node.value.kind == .True), 0);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
     pub fn visitNullExpression(self: *Self, node: *ast.NullExpression) !*ds.Any {
-        log("Visiting null expression", .{});
+        log("Visiting null expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.null_base_type);
         const ret = llvm_core.LLVMConstNull(llvm_type);
         debugV(ret);
@@ -2222,14 +2223,14 @@ pub const LLVMBackend = struct {
     }
 
     pub fn visitUndefinedExpression(self: *Self, node: *ast.UndefinedExpression) !*ds.Any {
-        log("Visiting undefined expression", .{});
+        log("Visiting undefined expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.base_type.?);
         const ret = llvm_core.LLVMGetUndef(llvm_type);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
     pub fn visitInfinityExpression(self: *Self, node: *ast.InfinityExpression) !*ds.Any {
-        log("Visiting infinity expression", .{});
+        log("Visiting infinity expression", .{}, .{ .module = .Codegen });
         const type_ = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const value = llvm_core.LLVMConstReal(type_, std.math.inf(f64));
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = value });
@@ -2237,12 +2238,12 @@ pub const LLVMBackend = struct {
 
     fn llvmNodeValue(self: *Self, any_value: *ds.Any) !llvm_types.LLVMValueRef {
         _ = self;
-        log("Resolving LLVM Node Value", .{});
+        log("Resolving LLVM Node Value", .{}, .{ .module = .Codegen });
         return any_value.LLVMValue;
     }
 
     fn llvmResolveValue(self: *Self, any_value: *ds.Any) !llvm_types.LLVMValueRef {
-        log("Resolving value", .{});
+        log("Resolving value", .{}, .{ .module = .Codegen });
         const llvm_value = try self.llvmNodeValue(any_value);
 
         if (llvm_core.LLVMIsAAllocaInst(llvm_value) != null) {
@@ -2257,7 +2258,7 @@ pub const LLVMBackend = struct {
     }
 
     fn llvmResolveVariable(self: *Self, name: []const u8) !llvm_types.LLVMValueRef {
-        log("Resolving variable", .{});
+        log("Resolving variable", .{}, .{ .module = .Codegen });
         _ = name;
         _ = self;
         return Error.NotImplemented;
@@ -2265,7 +2266,7 @@ pub const LLVMBackend = struct {
 
     fn llvmNumberValue(self: *Self, value_literal: []const u8, size: types.NumberKind) !llvm_types.LLVMValueRef {
         _ = self;
-        log("Resolving LLVM Number Value", .{});
+        log("Resolving LLVM Number Value", .{}, .{ .module = .Codegen });
 
         switch (size) {
             .Integer1 => {
@@ -2316,7 +2317,7 @@ pub const LLVMBackend = struct {
     }
 
     fn llvmTypeFromLangType(self: *Self, type_: *types.Type) Error!llvm_types.LLVMTypeRef {
-        log("Resolving LLVM Type from Lang Type", .{});
+        log("Resolving LLVM Type from Lang Type", .{}, .{ .module = .Codegen });
         const type_kind = type_.typeKind();
         if (type_kind == .Number) {
             const number_type = type_.Number;
@@ -2430,14 +2431,14 @@ pub const LLVMBackend = struct {
             }
             return self.llvmTypeFromLangType(self.generic_types.get(generic_name).?);
         }
-        log("Can't find LLVM Type for this Type: {any}", .{type_});
+        log("Can't find LLVM Type for this Type: {any}", .{type_}, .{ .module = .Codegen });
         self.internalCompilerError("Can't find LLVM Type for  this Type");
 
         unreachable;
     }
 
     fn createGlobalFieldDeclaration(self: *Self, name: []const u8, value: *ast.Expression, type_: *types.Type) !void {
-        log("Creating global field declaration", .{});
+        log("Creating global field declaration", .{}, .{ .module = .Codegen });
         _ = name;
         _ = value;
         _ = type_;
@@ -2446,7 +2447,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMNumbersBinary(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Creating LLVM numbers binary", .{});
+        log("Creating LLVM numbers binary", .{}, .{ .module = .Codegen });
         const lhs_type = llvm_core.LLVMTypeOf(left);
         const rhs_type = llvm_core.LLVMTypeOf(right);
         if (llvm_core.LLVMGetTypeKind(lhs_type) == .LLVMIntegerTypeKind and llvm_core.LLVMGetTypeKind(rhs_type) == .LLVMIntegerTypeKind) {
@@ -2462,7 +2463,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMIntegersBinary(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM integers binary", .{});
+        log("Creating LLVM integers binary", .{}, .{ .module = .Codegen });
         switch (op) {
             .Plus => return llvm_core.LLVMBuildAdd(builder, left, right, @ptrCast("addtmp")),
             .Minus => return llvm_core.LLVMBuildSub(builder, left, right, @ptrCast("subtmp")),
@@ -2475,7 +2476,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMFloatsBinary(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM floats binary", .{});
+        log("Creating LLVM floats binary", .{}, .{ .module = .Codegen });
         switch (op) {
             .Plus => return llvm_core.LLVMBuildFAdd(builder, left, right, @ptrCast("addtmp")),
             .Minus => return llvm_core.LLVMBuildFSub(builder, left, right, @ptrCast("subtmp")),
@@ -2488,7 +2489,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMIntegersVectorsBinary(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM integers vectors binary {any}", .{op});
+        log("Creating LLVM integers vectors binary {any}", .{op}, .{ .module = .Codegen });
         switch (op) {
             .Plus => return llvm_core.LLVMBuildAdd(builder, left, right, @ptrCast("addtmp")),
             .Minus => return llvm_core.LLVMBuildSub(builder, left, right, @ptrCast("subtmp")),
@@ -2501,7 +2502,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMFloatsVectorsBinary(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM floats vectors binary", .{});
+        log("Creating LLVM floats vectors binary", .{}, .{ .module = .Codegen });
         switch (op) {
             .Plus => return llvm_core.LLVMBuildFAdd(builder, left, right, @ptrCast("addtmp")),
             .Minus => return llvm_core.LLVMBuildFSub(builder, left, right, @ptrCast("subtmp")),
@@ -2514,7 +2515,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMNumbersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Creating LLVM numbers comparison", .{});
+        log("Creating LLVM numbers comparison", .{}, .{ .module = .Codegen });
         _ = op;
         _ = left;
         _ = right;
@@ -2523,7 +2524,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMIntegersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM integers comparison", .{});
+        log("Creating LLVM integers comparison", .{}, .{ .module = .Codegen });
         switch (op) {
             .EqualEqual => return llvm_core.LLVMBuildICmp(builder, .LLVMIntEQ, left, right, @ptrCast("")),
             .BangEqual => return llvm_core.LLVMBuildICmp(builder, .LLVMIntNE, left, right, @ptrCast("")),
@@ -2537,7 +2538,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMUnsignedIntegersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM unsigned integers comparison", .{});
+        log("Creating LLVM unsigned integers comparison", .{}, .{ .module = .Codegen });
         switch (op) {
             .EqualEqual => return llvm_core.LLVMBuildICmp(builder, .LLVMIntEQ, left, right, @ptrCast("")),
             .BangEqual => return llvm_core.LLVMBuildICmp(builder, .LLVMIntNE, left, right, @ptrCast("")),
@@ -2551,7 +2552,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMFloatsComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
-        log("Creating LLVM floats comparison", .{});
+        log("Creating LLVM floats comparison", .{}, .{ .module = .Codegen });
         switch (op) {
             .EqualEqual => return llvm_core.LLVMBuildFCmp(builder, .LLVMRealOEQ, left, right, @ptrCast("")),
             .BangEqual => return llvm_core.LLVMBuildFCmp(builder, .LLVMRealONE, left, right, @ptrCast("")),
@@ -2565,7 +2566,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMStringsComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Creating LLVM strings comparison", .{});
+        log("Creating LLVM strings comparison", .{}, .{ .module = .Codegen });
         const function_name = "strcmp";
         var function = (try self.lookupFunction(function_name)).?;
 
@@ -2591,7 +2592,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMValueIncrement(self: *Self, operand: *ast.Expression, is_prefix: bool) !llvm_types.LLVMValueRef {
-        log("Creating LLVM value increment", .{});
+        log("Creating LLVM value increment", .{}, .{ .module = .Codegen });
         const number_type = operand.getTypeNode().?.Number;
         const constants_one = try self.llvmNumberValue("1", number_type.number_kind);
         var right: llvm_types.LLVMValueRef = undefined;
@@ -2654,7 +2655,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMValueDecrement(self: *Self, operand: *ast.Expression, is_prefix: bool) !llvm_types.LLVMValueRef {
-        log("Creating LLVM value decrement", .{});
+        log("Creating LLVM value decrement", .{}, .{ .module = .Codegen });
         const number_type = operand.getTypeNode().?.Number;
         const constants_one = try self.llvmNumberValue("1", number_type.number_kind);
 
@@ -2717,14 +2718,14 @@ pub const LLVMBackend = struct {
     }
 
     fn createLLVMStringLength(self: *Self, string: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Creating LLVM string length", .{});
+        log("Creating LLVM string length", .{}, .{ .module = .Codegen });
         _ = string;
         _ = self;
         return Error.NotImplemented;
     }
 
     fn createLLVMStructType(self: *Self, name: []const u8, members: []const *types.Type, is_packed: bool, is_extern: bool) !llvm_types.LLVMTypeRef {
-        log("Creating LLVM struct type", .{});
+        log("Creating LLVM struct type", .{}, .{ .module = .Codegen });
         if (self.structures_types_map.contains(name)) {
             return self.structures_types_map.get(name).?;
         }
@@ -2764,14 +2765,14 @@ pub const LLVMBackend = struct {
     }
 
     fn createOverloadingFunctionCall(self: *Self, name: []const u8, args: []llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Creating overloading function call {s}", .{name});
+        log("Creating overloading function call {s}", .{name}, .{ .module = .Codegen });
         const function = (try self.lookupFunction(name)).?;
         const call = llvm_core.LLVMBuildCall2(builder, llvm_core.LLVMGetElementType(llvm_core.LLVMTypeOf(function)), function, @ptrCast(args), @intCast(args.len), "");
         return call;
     }
 
     fn accessStructMemberPointer(self: *Self, callee_value: llvm_types.LLVMValueRef, type_: llvm_types.LLVMTypeRef, field_index: u32) !llvm_types.LLVMValueRef {
-        log("Accessing struct member pointer", .{});
+        log("Accessing struct member pointer", .{}, .{ .module = .Codegen });
         const callee_llvm_type = type_;
         const index = llvm_core.LLVMConstInt(llvm_int32_type, @intCast(field_index), 1);
         if (llvm_core.LLVMGetTypeKind(callee_llvm_type) == .LLVMStructTypeKind) {
@@ -2816,20 +2817,20 @@ pub const LLVMBackend = struct {
     }
 
     fn accessStructMemberPointer2(self: *Self, callee: *ast.Expression, field_index: u32) !llvm_types.LLVMValueRef {
-        log("Accessing struct member pointer 2", .{});
+        log("Accessing struct member pointer 2", .{}, .{ .module = .Codegen });
         const callee_value = try self.llvmNodeValue(try callee.accept(self.visitor));
         const callee_type = try self.llvmTypeFromLangType(callee.getTypeNode().?);
         return self.accessStructMemberPointer(callee_value, callee_type, field_index);
     }
 
     fn accessStructMemberPointer3(self: *Self, expression: *const ast.DotExpression) !llvm_types.LLVMValueRef {
-        log("Accessing struct member pointer 3", .{});
+        log("Accessing struct member pointer 3", .{}, .{ .module = .Codegen });
         const callee = expression.callee;
         return self.accessStructMemberPointer2(callee, expression.field_index);
     }
 
     fn accessArrayElement(self: *Self, node_value: *ast.Expression, index: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
-        log("Accessing array element", .{});
+        log("Accessing array element", .{}, .{ .module = .Codegen });
         const values = node_value.getTypeNode().?;
 
         if (values.typeKind() == .Pointer) {
@@ -2926,7 +2927,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveGenericFunction(self: *Self, node: *ast.FunctionDeclaration, generic_parameters: []const *types.Type) !llvm_types.LLVMValueRef {
-        log("Resolving generic function", .{});
+        log("Resolving generic function", .{}, .{ .module = .Codegen });
         self.is_on_global_scope = false;
         const prototype = node.prototype;
         const name = prototype.name.literal;
@@ -3022,7 +3023,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveConstantExpression(self: *Self, value: ?*ast.Expression) !llvm_types.LLVMValueRef {
-        log("Resolving constant expression", .{});
+        log("Resolving constant expression", .{}, .{ .module = .Codegen });
         if (value == null) {
             const field_type = value.?.getTypeNode().?;
             return llvm_core.LLVMConstNull(try self.llvmTypeFromLangType(field_type));
@@ -3043,7 +3044,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveConstantIndexExpression(self: *Self, expression: *const ast.IndexExpression) !llvm_types.LLVMValueRef {
-        log("Resolving constant index expression", .{});
+        log("Resolving constant index expression", .{}, .{ .module = .Codegen });
         const llvm_array = try self.llvmResolveValue(try expression.value.accept(self.visitor));
         const index_value = try expression.index.accept(self.visitor);
         const constants_index = try self.llvmNodeValue(index_value);
@@ -3084,7 +3085,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveConstantIfExpression(self: *Self, expression: *const ast.IfExpression) !llvm_types.LLVMValueRef {
-        log("Resolving constant if expression", .{});
+        log("Resolving constant if expression", .{}, .{ .module = .Codegen });
         const count = expression.tokens.items.len;
         for (0..count) |i| {
             const condition = try self.llvmResolveValue(try expression.conditions.items[i].accept(self.visitor));
@@ -3097,7 +3098,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveConstantSwitchExpression(self: *Self, expression: *ast.SwitchExpression) !llvm_types.LLVMValueRef {
-        log("Resolving constant switch expression", .{});
+        log("Resolving constant switch expression", .{}, .{ .module = .Codegen });
         const op = expression.op;
         const constant_argument = try self.llvmResolveValue(try expression.argument.accept(self.visitor));
         const switch_cases = expression.switch_cases;
@@ -3134,7 +3135,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveConstantStringExpression(self: *Self, literal: []const u8) !*ds.Any {
-        log("Resolving constant string expression", .{});
+        log("Resolving constant string expression", .{}, .{ .module = .Codegen });
         if (self.constants_string_pool.contains(literal)) {
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = self.constants_string_pool.get(literal).? });
         }
@@ -3168,7 +3169,7 @@ pub const LLVMBackend = struct {
     }
 
     fn resolveGenericStruct(self: *Self, generic: *const types.GenericStructType) !llvm_types.LLVMTypeRef {
-        log("Resolving generic struct", .{});
+        log("Resolving generic struct", .{}, .{ .module = .Codegen });
         const struct_type = generic.struct_type;
         const struct_name = struct_type.name;
         const mangled_name = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ struct_name, try types.mangleTypes(self.allocator, generic.parameters.items) });
@@ -3225,7 +3226,7 @@ pub const LLVMBackend = struct {
     }
 
     fn createEntryBlockAlloca(self: *Self, function: llvm_types.LLVMValueRef, var_name: []const u8, type_: llvm_types.LLVMTypeRef) !llvm_types.LLVMValueRef {
-        log("Creating entry block alloca", .{});
+        log("Creating entry block alloca", .{}, .{ .module = .Codegen });
         const builder_object = llvm_core.LLVMCreateBuilder();
         const entry_block = llvm_core.LLVMGetEntryBasicBlock(function);
         llvm_core.LLVMPositionBuilder(builder_object, entry_block, llvm_core.LLVMGetFirstInstruction(entry_block));
@@ -3236,17 +3237,9 @@ pub const LLVMBackend = struct {
     }
 
     fn lookupFunction(self: *Self, name: []const u8) !?llvm_types.LLVMValueRef {
-        log("Looking up function", .{});
+        log("Looking up function", .{}, .{ .module = .Codegen });
         if (llvm_core.LLVMGetNamedFunction(self.llvm_module, self.cStr(name)) != null) {
             return llvm_core.LLVMGetNamedFunction(self.llvm_module, self.cStr(name));
-        }
-
-        for (self.functions_table.keys()) |key| {
-            log("Table: {s}", .{key});
-        }
-
-        for (self.function_declarations.keys()) |key| {
-            log("Decl: {s}", .{key});
         }
 
         if (self.functions_table.contains(name)) {
@@ -3259,7 +3252,7 @@ pub const LLVMBackend = struct {
 
     fn isLambdaFunctionName(self: *Self, name: []const u8) !bool {
         _ = self;
-        log("Checking if is lambda function name", .{});
+        log("Checking if is lambda function name", .{}, .{ .module = .Codegen });
         if (name.len < 7) {
             return false;
         }
@@ -3267,12 +3260,12 @@ pub const LLVMBackend = struct {
     }
 
     fn isGlobalBlock(self: *Self) bool {
-        log("Checking if is global block", .{});
+        log("Checking if is global block", .{}, .{ .module = .Codegen });
         return self.is_on_global_scope;
     }
 
     fn executeDeferCall(self: *Self, defer_call: *DeferCall) void {
-        log("Executing defer call", .{});
+        log("Executing defer call", .{}, .{ .module = .Codegen });
         _ = switch (defer_call.*) {
             .FunctionCall => |fun_call| {
                 const fun_name = llvm_core.LLVMGetValueName(fun_call.function);
@@ -3284,7 +3277,7 @@ pub const LLVMBackend = struct {
     }
 
     fn executeScopeDeferCalls(self: *Self) void {
-        log("Executing scope defer calls", .{});
+        log("Executing scope defer calls", .{}, .{ .module = .Codegen });
         const defer_calls = self.defer_calls_stack.getLast().getScopeElements2();
         for (defer_calls) |defer_call| {
             self.executeDeferCall(defer_call);
@@ -3292,10 +3285,10 @@ pub const LLVMBackend = struct {
     }
 
     fn executeAllDeferCalls(self: *Self) void {
-        log("Executing all defer calls", .{});
+        log("Executing all defer calls", .{}, .{ .module = .Codegen });
         const current_defer_stack = self.defer_calls_stack.getLast();
         const size = current_defer_stack.size();
-        log("Defer stack size {d}", .{size});
+        log("Defer stack size {d}", .{size}, .{ .module = .Codegen });
         var i: i64 = @intCast(size - 1);
         while (i >= 0) : (i -= 1) {
             const defer_calls = current_defer_stack.getScopeElements(@intCast(i));
@@ -3306,12 +3299,12 @@ pub const LLVMBackend = struct {
     }
 
     fn pushAllocaInstScope(self: *Self) !void {
-        log("Pushing alloca inst scope", .{});
+        log("Pushing alloca inst scope", .{}, .{ .module = .Codegen });
         try self.alloca_inst_table.pushNewScope();
     }
 
     fn popAllocaInstScope(self: *Self) void {
-        log("Popping alloca inst scope", .{});
+        log("Popping alloca inst scope", .{}, .{ .module = .Codegen });
         self.alloca_inst_table.popCurrentScope();
     }
 
@@ -3326,7 +3319,7 @@ pub const LLVMBackend = struct {
     }
 
     fn dereferencesLLVMPointer(pointer: llvm_types.LLVMValueRef, pointer_type: PointerType) llvm_types.LLVMValueRef {
-        log("Dereferencing LLVM pointer", .{});
+        log("Dereferencing LLVM pointer", .{}, .{ .module = .Codegen });
         _ = pointer_type;
         // const ptr_type = switch (pointer_type) {
         //     .Alloca => llvm_core.LLVMGetAllocatedType(pointer),
@@ -3351,8 +3344,10 @@ pub const LLVMBackend = struct {
     }
 
     fn debugModule(self: *Self) void {
-        log("Debugging module", .{});
-        llvm_core.LLVMDumpModule(self.llvm_module);
+        log("Debugging module", .{}, .{ .module = .Codegen });
+        if (diagnostics.LogOptions.enable_codegen_logging) {
+            llvm_core.LLVMDumpModule(self.llvm_module);
+        }
     }
 };
 
@@ -3389,12 +3384,16 @@ pub const DeferFunctionPtrCall = struct {
 
 fn debugV(val: llvm_types.LLVMValueRef) void {
     const str = llvm_core.LLVMPrintValueToString(val);
-    std.log.info("Value : {s}", .{str});
+    if (diagnostics.LogOptions.enable_codegen_logging) {
+        std.log.info("Value : {s}", .{str});
+    }
     llvm_core.LLVMDisposeMessage(str);
 }
 
 fn debugT(val: llvm_types.LLVMTypeRef) void {
     const str = llvm_core.LLVMPrintTypeToString(val);
-    std.log.info("Type : {s}", .{str});
+    if (diagnostics.LogOptions.enable_codegen_logging) {
+        std.log.info("Type : {s}", .{str});
+    }
     llvm_core.LLVMDisposeMessage(str);
 }

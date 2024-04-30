@@ -6,7 +6,6 @@ const ast = @import("ast.zig");
 const CompilationUnit = ast.CompilationUnit;
 const Tokenizer = @import("tokenizer.zig").Tokenizer;
 const TypeChecker = @import("typechecker.zig").TypeChecker;
-const log = @import("data_structures.zig").log;
 const backend = @import("llvm_backend.zig");
 const llvm = @import("llvm/llvm-zig.zig");
 const llvm_core = llvm.core;
@@ -38,10 +37,6 @@ pub const Compiler = struct {
         const source_content = self.readFile(source_file);
         const tokenizer = self.allocator.create(Tokenizer) catch unreachable;
         tokenizer.* = Tokenizer.init(self.allocator, source_content, file_id);
-        // const tokens = tokenizer.scanAllTokens() catch unreachable;
-        // for (tokens) |token| {
-        //     std.debug.print("{any}, {s}\n", .{ token.kind, token.literal });
-        // }
         var source_parser = Parser.init(self.allocator, self.context, tokenizer) catch {
             std.debug.print("Failed to create parser for source file '{s}'\n", .{source_file});
             return std.process.exit(1);
@@ -84,7 +79,7 @@ pub const Compiler = struct {
             std.process.exit(1);
         }
 
-        log("Source code '{s}' is valid\n", .{source_file});
+        std.debug.print("Source code '{s}' is valid\n", .{source_file});
     }
 
     pub fn emitLLVMIR(self: *Self, source_file: []const u8) void {

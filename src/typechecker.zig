@@ -6,7 +6,7 @@ const types = @import("types.zig");
 const Error = @import("diagnostics.zig").Error;
 const ds = @import("data_structures.zig");
 const tokenizer = @import("tokenizer.zig");
-const log = ds.log;
+const log = @import("diagnostics.zig").log;
 
 const Pair = struct {
     first: []const u8,
@@ -163,17 +163,17 @@ pub const TypeChecker = struct {
     }
 
     pub fn pushNewScope(self: *TypeChecker) !void {
-        log("Pushing new scope", .{});
+        log("Pushing new scope", .{}, .{ .module = .TypeChecker });
         try self.types_table.pushNewScope();
     }
 
     pub fn popCurrentScope(self: *TypeChecker) void {
-        log("Popping current scope", .{});
+        log("Popping current scope", .{}, .{ .module = .TypeChecker });
         self.types_table.popCurrentScope();
     }
 
     pub fn visitBlockStatement(self: *TypeChecker, node: *ast.BlockStatement) !*ds.Any {
-        log("Visiting block statement", .{});
+        log("Visiting block statement", .{}, .{ .module = .TypeChecker });
         try self.pushNewScope();
         for (node.statements.items) |statement| {
             _ = try statement.accept(self.visitor);
@@ -183,7 +183,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitFieldDeclaration(self: *TypeChecker, node: *ast.FieldDeclaration) !*ds.Any {
-        log("Visiting field declaration", .{});
+        log("Visiting field declaration", .{}, .{ .module = .TypeChecker });
         var left_type = if (node.has_explicit_type) try self.resolveGenericType(node.field_type, null, null) else @constCast(&types.Type.NONE_TYPE);
         const right_value = node.value;
         const name = node.name.literal;
@@ -286,7 +286,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitConstDeclaration(self: *TypeChecker, node: *ast.ConstDeclaration) !*ds.Any {
-        log("Visiting const declaration", .{});
+        log("Visiting const declaration", .{}, .{ .module = .TypeChecker });
         const name = node.name.literal;
         const type_ = try node.value.accept(self.visitor);
         const is_first_defined = self.types_table.define(name, type_);
@@ -298,7 +298,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitFunctionPrototype(self: *TypeChecker, node: *ast.FunctionPrototype) !*ds.Any {
-        log("Visiting function prototype", .{});
+        log("Visiting function prototype", .{}, .{ .module = .TypeChecker });
         const name = node.name;
         var parameters = std.ArrayList(*types.Type).init(self.allocator);
         try parameters.ensureTotalCapacity(node.parameters.items.len);
@@ -329,7 +329,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitIntrinsicPrototype(self: *TypeChecker, node: *ast.IntrinsicPrototype) !*ds.Any {
-        log("Visiting intrinsic prototype", .{});
+        log("Visiting intrinsic prototype", .{}, .{ .module = .TypeChecker });
         const name = node.name;
         var parameters = std.ArrayList(*types.Type).init(self.allocator);
 
@@ -359,7 +359,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitFunctionDeclaration(self: *TypeChecker, node: *ast.FunctionDeclaration) !*ds.Any {
-        log("Visiting function declaration, node: {any}", .{node});
+        log("Visiting function declaration, node: {any}", .{node}, .{ .module = .TypeChecker });
         const prototype = node.prototype;
         if (prototype.is_generic) {
             try self.generic_functions_declarations.put(prototype.name.literal, node);
@@ -391,7 +391,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitOperatorFunctionDeclaration(self: *TypeChecker, node: *ast.OperatorFunctionDeclaration) !*ds.Any {
-        log("Visiting operator function declaration", .{});
+        log("Visiting operator function declaration", .{}, .{ .module = .TypeChecker });
         const prototype = node.function.prototype;
         const parameters = prototype.parameters;
 
@@ -413,7 +413,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitStructDeclaration(self: *TypeChecker, node: *ast.StructDeclaration) !*ds.Any {
-        log("Visiting struct declaration", .{});
+        log("Visiting struct declaration", .{}, .{ .module = .TypeChecker });
         const struct_type = node.struct_type;
         if (!struct_type.Struct.is_generic) {
             const struct_name = struct_type.Struct.name;
@@ -424,7 +424,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitEnumDeclaration(self: *TypeChecker, node: *ast.EnumDeclaration) !*ds.Any {
-        log("Visiting enum declaration", .{});
+        log("Visiting enum declaration", .{}, .{ .module = .TypeChecker });
         const name = node.name.literal;
         const enum_type = node.enum_type.Enum;
         const enum_element_type = enum_type.element_type.?;
@@ -448,7 +448,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitIfStatement(self: *TypeChecker, node: *ast.IfStatement) !*ds.Any {
-        log("Visiting if statement", .{});
+        log("Visiting if statement", .{}, .{ .module = .TypeChecker });
         for (node.conditional_blocks.items) |conditional_block| {
             const condition = self.nodeType(try conditional_block.condition.accept(self.visitor));
             if (!types.isNumberType(condition)) {
@@ -463,7 +463,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitForRangeStatement(self: *TypeChecker, node: *ast.ForRangeStatement) !*ds.Any {
-        log("Visiting for range statement", .{});
+        log("Visiting for range statement", .{}, .{ .module = .TypeChecker });
         const start_type = self.nodeType(try node.range_start.accept(self.visitor));
         const end_type = self.nodeType(try node.range_end.accept(self.visitor));
 
@@ -488,7 +488,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitForEachStatement(self: *TypeChecker, node: *ast.ForEachStatement) !*ds.Any {
-        log("Visiting for each statement", .{});
+        log("Visiting for each statement", .{}, .{ .module = .TypeChecker });
         const collection_type = self.nodeType(try node.collection.accept(self.visitor));
         const is_array_type = collection_type.typeKind() == .StaticArray;
         const is_string_type = types.isPointerOfType(collection_type, @constCast(&types.Type.I8_TYPE));
@@ -524,7 +524,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitForeverStatement(self: *TypeChecker, node: *ast.ForEverStatement) !*ds.Any {
-        log("Visiting forever statement", .{});
+        log("Visiting forever statement", .{}, .{ .module = .TypeChecker });
         try self.pushNewScope();
         _ = try node.body.accept(self.visitor);
         self.popCurrentScope();
@@ -532,7 +532,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitWhileStatement(self: *TypeChecker, node: *ast.WhileStatement) !*ds.Any {
-        log("Visiting while statement", .{});
+        log("Visiting while statement", .{}, .{ .module = .TypeChecker });
         const left_type = self.nodeType(try node.condition.accept(self.visitor));
         if (!types.isNumberType(left_type)) {
             try self.context.diagnostics.reportError(node.keyword.position, try std.fmt.allocPrint(self.allocator, "While condition mush be a number but got {s}", .{try types.getTypeLiteral(self.allocator, left_type)}));
@@ -545,7 +545,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitSwitchStatement(self: *TypeChecker, node: *ast.SwitchStatement) !*ds.Any {
-        log("Visiting switch statement", .{});
+        log("Visiting switch statement", .{}, .{ .module = .TypeChecker });
         const argument = self.nodeType(try node.argument.accept(self.visitor));
         const position = node.keyword.position;
 
@@ -635,7 +635,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitReturnStatement(self: *TypeChecker, node: *ast.ReturnStatement) !*ds.Any {
-        log("Visiting return statement", .{});
+        log("Visiting return statement", .{}, .{ .module = .TypeChecker });
         if (!node.has_value) {
             if (self.return_types_stack.getLast().typeKind() != .Void) {
                 try self.context.diagnostics.reportError(node.keyword.position, try std.fmt.allocPrint(self.allocator, "Expect return value to be {s} but got void", .{try types.getTypeLiteral(self.allocator, self.return_types_stack.getLast())}));
@@ -680,7 +680,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitDestructuringDeclaration(self: *TypeChecker, node: *ast.DestructuringDeclaration) !*ds.Any {
-        log("Visiting destructuring declaration", .{});
+        log("Visiting destructuring declaration", .{}, .{ .module = .TypeChecker });
         const position = node.equal_token.position;
 
         if (node.is_global) {
@@ -721,13 +721,13 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitDeferStatement(self: *TypeChecker, node: *ast.DeferStatement) !*ds.Any {
-        log("Visiting defer statement", .{});
+        log("Visiting defer statement", .{}, .{ .module = .TypeChecker });
         _ = try node.call_expression.accept(self.visitor);
         return self.allocReturn(ds.Any, ds.Any{ .U32 = 0 });
     }
 
     pub fn visitBreakStatement(self: *TypeChecker, node: *ast.BreakStatement) !*ds.Any {
-        log("Visiting break statement", .{});
+        log("Visiting break statement", .{}, .{ .module = .TypeChecker });
         if (node.has_times and node.times == 1) {
             try self.context.diagnostics.reportWarning(node.keyword.position, "`break 1;` can implicity written as `break;`");
         }
@@ -735,7 +735,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitContinueStatement(self: *TypeChecker, node: *ast.ContinueStatement) !*ds.Any {
-        log("Visiting continue statement", .{});
+        log("Visiting continue statement", .{}, .{ .module = .TypeChecker });
         if (node.has_times and node.times == 1) {
             try self.context.diagnostics.reportWarning(node.keyword.position, "`continue 1;` can implicity written as `continue;`");
         }
@@ -743,12 +743,12 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitExpressionStatement(self: *TypeChecker, node: *ast.ExpressionStatement) !*ds.Any {
-        log("Visiting expression statement", .{});
+        log("Visiting expression statement", .{}, .{ .module = .TypeChecker });
         return try node.expression.accept(self.visitor);
     }
 
     pub fn visitIfExpression(self: *TypeChecker, node: *ast.IfExpression) !*ds.Any {
-        log("Visiting if expression", .{});
+        log("Visiting if expression", .{}, .{ .module = .TypeChecker });
         const branches_count = node.tokens.items.len;
         var node_type = @constCast(&types.Type.NONE_TYPE);
 
@@ -777,7 +777,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitSwitchExpression(self: *TypeChecker, node: *ast.SwitchExpression) !*ds.Any {
-        log("Visiting switch expression", .{});
+        log("Visiting switch expression", .{}, .{ .module = .TypeChecker });
         const argument = self.nodeType(try node.argument.accept(self.visitor));
         const position = node.keyword.position;
 
@@ -836,7 +836,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitTupleExpression(self: *TypeChecker, node: *ast.TupleExpression) !*ds.Any {
-        log("Visiting tuple expression", .{});
+        log("Visiting tuple expression", .{}, .{ .module = .TypeChecker });
         var field_types = std.ArrayList(*types.Type).init(self.allocator);
 
         for (node.values.items) |value| {
@@ -851,7 +851,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitAssignExpression(self: *TypeChecker, node: *ast.AssignExpression) !*ds.Any {
-        log("Visiting assign expression", .{});
+        log("Visiting assign expression", .{}, .{ .module = .TypeChecker });
         const left_node = node.left;
         const left_type = self.nodeType(try left_node.accept(self.visitor));
 
@@ -873,7 +873,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitBinaryExpression(self: *TypeChecker, node: *ast.BinaryExpression) !*ds.Any {
-        log("Visiting binary expression", .{});
+        log("Visiting binary expression", .{}, .{ .module = .TypeChecker });
         const lhs = self.nodeType(try node.left.accept(self.visitor));
         const rhs = self.nodeType(try node.right.accept(self.visitor));
         const op = node.operator_token;
@@ -916,7 +916,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitBitwiseExpression(self: *TypeChecker, node: *ast.BitwiseExpression) !*ds.Any {
-        log("Visiting bitwise expression", .{});
+        log("Visiting bitwise expression", .{}, .{ .module = .TypeChecker });
         const lhs = self.nodeType(try node.left.accept(self.visitor));
         const rhs = self.nodeType(try node.right.accept(self.visitor));
         const op = node.operator_token;
@@ -983,7 +983,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitComparisonExpression(self: *TypeChecker, node: *ast.ComparisonExpression) !*ds.Any {
-        log("Visiting comparison expression", .{});
+        log("Visiting comparison expression", .{}, .{ .module = .TypeChecker });
         const lhs = self.nodeType(try node.left.accept(self.visitor));
         const rhs = self.nodeType(try node.right.accept(self.visitor));
         const are_types_equals = types.isTypesEquals(lhs, rhs);
@@ -1063,7 +1063,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitLogicalExpression(self: *TypeChecker, node: *ast.LogicalExpression) !*ds.Any {
-        log("Visiting logical expression", .{});
+        log("Visiting logical expression", .{}, .{ .module = .TypeChecker });
         const lhs = self.nodeType(try node.left.accept(self.visitor));
         const rhs = self.nodeType(try node.right.accept(self.visitor));
 
@@ -1091,7 +1091,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitPrefixUnaryExpression(self: *TypeChecker, node: *ast.PrefixUnaryExpression) !*ds.Any {
-        log("Visiting prefix unary expression", .{});
+        log("Visiting prefix unary expression", .{}, .{ .module = .TypeChecker });
         const rhs = self.nodeType(try node.right.accept(self.visitor));
         const op = node.operator_token;
         const position = op.position;
@@ -1209,7 +1209,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitPostfixUnaryExpression(self: *TypeChecker, node: *ast.PostfixUnaryExpression) !*ds.Any {
-        log("Visiting postfix unary expression", .{});
+        log("Visiting postfix unary expression", .{}, .{ .module = .TypeChecker });
         const rhs = self.nodeType(try node.right.accept(self.visitor));
         const op_kind = node.operator_token.kind;
         const position = node.operator_token.position;
@@ -1238,8 +1238,8 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitInitializeExpression(self: *TypeChecker, node: *ast.InitExpression) !*ds.Any {
-        log("Visiting initialize expression", .{});
-        log("Initialize expression value : {any}", .{node.value_type.?});
+        log("Visiting initialize expression", .{}, .{ .module = .TypeChecker });
+        log("Initialize expression value : {any}", .{node.value_type.?}, .{ .module = .TypeChecker });
         const type_ = try self.resolveGenericType(node.value_type.?, null, null);
         node.setTypeNode(type_);
 
@@ -1256,7 +1256,7 @@ pub const TypeChecker = struct {
         return Error.Stop;
     }
     pub fn visitLambdaExpression(self: *TypeChecker, node: *ast.LambdaExpression) !*ds.Any {
-        log("Visiting lambda expression", .{});
+        log("Visiting lambda expression", .{}, .{ .module = .TypeChecker });
         var function_ptr_type = node.getTypeNode().?.Pointer;
         var function_type = function_ptr_type.base_type.Function;
 
@@ -1299,7 +1299,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitDotExpression(self: *TypeChecker, node: *ast.DotExpression) !*ds.Any {
-        log("Visiting dot expression", .{});
+        log("Visiting dot expression", .{}, .{ .module = .TypeChecker });
         const callee = try node.callee.accept(self.visitor);
         const callee_type = self.nodeType(callee);
         const callee_type_kind = callee_type.typeKind();
@@ -1430,7 +1430,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitCastExpression(self: *TypeChecker, node: *ast.CastExpression) !*ds.Any {
-        log("Visiting cast expression", .{});
+        log("Visiting cast expression", .{}, .{ .module = .TypeChecker });
         const value = node.value;
         const value_type = self.nodeType(try value.accept(self.visitor));
         const target_type = try self.resolveGenericType(node.value_type, null, null);
@@ -1450,27 +1450,27 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitTypeSizeExpression(self: *TypeChecker, node: *ast.TypeSizeExpression) !*ds.Any {
-        log("Visiting type size expression", .{});
+        log("Visiting type size expression", .{}, .{ .module = .TypeChecker });
         const type_ = try self.resolveGenericType(node.value_type.?, null, null);
         node.value_type = type_;
         return self.allocReturn(ds.Any, ds.Any{ .Type = @constCast(&types.Type.I64_TYPE) });
     }
 
     pub fn visitTypeAlignExpression(self: *TypeChecker, node: *ast.TypeAlignExpression) !*ds.Any {
-        log("Visiting type align expression", .{});
+        log("Visiting type align expression", .{}, .{ .module = .TypeChecker });
         const type_ = try self.resolveGenericType(node.value_type.?, null, null);
         node.value_type = type_;
         return self.allocReturn(ds.Any, ds.Any{ .Type = @constCast(&types.Type.I64_TYPE) });
     }
 
     pub fn visitValueSizeExpression(self: *TypeChecker, node: *ast.ValueSizeExpression) !*ds.Any {
-        log("Visiting value size expression", .{});
+        log("Visiting value size expression", .{}, .{ .module = .TypeChecker });
         _ = try node.value.accept(self.visitor);
         return self.allocReturn(ds.Any, ds.Any{ .Type = @constCast(&types.Type.I64_TYPE) });
     }
 
     pub fn visitIndexExpression(self: *TypeChecker, node: *ast.IndexExpression) !*ds.Any {
-        log("Visiting index expression", .{});
+        log("Visiting index expression", .{}, .{ .module = .TypeChecker });
         const index = node.index;
         const index_type = self.nodeType(try index.accept(self.visitor));
         const position = node.position.position;
@@ -1532,12 +1532,12 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitEnumAccessExpression(self: *TypeChecker, node: *ast.EnumAccessExpression) !*ds.Any {
-        log("Visiting enum access expression", .{});
+        log("Visiting enum access expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitLiteralExpression(self: *TypeChecker, node: *ast.LiteralExpression) !*ds.Any {
-        log("Visiting literal expression", .{});
+        log("Visiting literal expression", .{}, .{ .module = .TypeChecker });
         const name = node.name.literal;
         if (!self.types_table.isDefined(name)) {
             try self.context.diagnostics.reportError(node.name.position, try std.fmt.allocPrint(self.allocator, "Can't resolve variable with name {s}", .{node.name.literal}));
@@ -1578,7 +1578,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitNumberExpression(self: *TypeChecker, node: *ast.NumberExpression) !*ds.Any {
-        log("Visiting number expression", .{});
+        log("Visiting number expression", .{}, .{ .module = .TypeChecker });
 
         const number_type = node.getTypeNode().?.Number;
         const number_kind = number_type.number_kind;
@@ -1595,7 +1595,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitArrayExpression(self: *TypeChecker, node: *ast.ArrayExpression) !*ds.Any {
-        log("Visiting array expression", .{});
+        log("Visiting array expression", .{}, .{ .module = .TypeChecker });
         const values = node.values;
         const values_size = values.items.len;
         if (values_size == 0) {
@@ -1623,7 +1623,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitVectorExpression(self: *TypeChecker, node: *ast.VectorExpression) !*ds.Any {
-        log("Visiting vector expression", .{});
+        log("Visiting vector expression", .{}, .{ .module = .TypeChecker });
         const array = node.array;
         const array_type = array.value_type.?.StaticArray;
         const element_type = array_type.element_type.?;
@@ -1637,32 +1637,32 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitStringExpression(self: *TypeChecker, node: *ast.StringExpression) !*ds.Any {
-        log("Visiting string expression", .{});
+        log("Visiting string expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitCharacterExpression(self: *TypeChecker, node: *ast.CharacterExpression) !*ds.Any {
-        log("Visiting character expression", .{});
+        log("Visiting character expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitBooleanExpression(self: *TypeChecker, node: *ast.BoolExpression) !*ds.Any {
-        log("Visiting boolean expression", .{});
+        log("Visiting boolean expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitNullExpression(self: *TypeChecker, node: *ast.NullExpression) !*ds.Any {
-        log("Visiting null expression", .{});
+        log("Visiting null expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitUndefinedExpression(self: *TypeChecker, node: *ast.UndefinedExpression) !*ds.Any {
-        log("Visiting undefined expression", .{});
+        log("Visiting undefined expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
     pub fn visitInfinityExpression(self: *TypeChecker, node: *ast.InfinityExpression) !*ds.Any {
-        log("Visiting infinity expression", .{});
+        log("Visiting infinity expression", .{}, .{ .module = .TypeChecker });
         return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
     }
 
@@ -1681,7 +1681,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn resolveGenericType(self: *TypeChecker, type_: *types.Type, generic_names: ?std.ArrayList([]const u8), generic_parameters: ?std.ArrayList(*types.Type)) !*types.Type {
-        log("Resolving generic type", .{});
+        log("Resolving generic type", .{}, .{ .module = .TypeChecker });
         if (type_.typeKind() == .GenericParameter) {
             const generic = type_.GenericParameter;
             var position: ?usize = null;
@@ -1943,7 +1943,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn checkParametersTypes(self: *TypeChecker, location: tokenizer.TokenSpan, arguments: std.ArrayList(*ast.Expression), parameters: std.ArrayList(*types.Type), has_varargs: bool, varargs_type: ?*types.Type, implicit_parameters_count: usize) !void {
-        log("Checking parameters types", .{});
+        log("Checking parameters types", .{}, .{ .module = .TypeChecker });
         const arguments_size = arguments.items.len;
         const all_arguments_size: usize = arguments_size + implicit_parameters_count;
         const parameters_size = parameters.items.len;
@@ -2034,7 +2034,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn checkNumberLimits(self: *TypeChecker, literal: []const u8, kind: types.NumberKind) !bool {
-        log("Checking number limits: {s}", .{literal});
+        log("Checking number limits: {s}", .{literal}, .{ .module = .TypeChecker });
         _ = self;
         switch (kind) {
             types.NumberKind.Integer1 => {
@@ -2158,7 +2158,7 @@ pub const TypeChecker = struct {
     }
 
     pub fn visitCallExpression(self: *TypeChecker, node: *ast.CallExpression) !*ds.Any {
-        log("Visiting call expression", .{});
+        log("Visiting call expression", .{}, .{ .module = .TypeChecker });
         const callee = node.callee;
         const callee_type = node.callee.getAstNodeType();
         const node_span = node.position.position;
@@ -2356,7 +2356,7 @@ pub const TypeChecker = struct {
     }
 
     fn checkMissingReturnStatement(self: *TypeChecker, node: *ast.Statement) bool {
-        log("Checking missing return statement", .{});
+        log("Checking missing return statement", .{}, .{ .module = .TypeChecker });
         if (node.getAstNodeType() == .Return) {
             return true;
         }

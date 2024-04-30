@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const Type = types.Type;
 const llvm_types = @import("llvm/types.zig");
+const log = @import("diagnostics.zig").log;
 
 pub const Any = union(enum) {
     U32: u32,
@@ -72,7 +73,7 @@ pub fn ScopedMap(comptime V: type) type {
             while (i >= 0) : (i -= 1) {
                 const keys = self.linked_scoped.items[@intCast(i)].keys();
                 for (keys) |key| {
-                    std.debug.print("Level {d}: {s}", .{ i, key });
+                    log("Level {d}: {s}", .{ i, key }, .{ .module = .General });
                 }
             }
         }
@@ -243,12 +244,6 @@ pub fn combineStruct(comptime T1: type, comptime T2: type) type {
             .is_tuple = false,
         },
     });
-}
-
-pub fn log(comptime fmt: []const u8, args: anytype) void {
-    // _ = fmt;
-    // _ = args;
-    std.log.info(fmt, args);
 }
 
 pub fn indexOf(haystack: [][]const u8, needle: []const u8) ?usize {

@@ -3,7 +3,7 @@ const ast = @import("ast.zig");
 const print = std.debug.print;
 const tokenizer = @import("tokenizer.zig");
 const types = @import("types.zig");
-const log = @import("data_structures.zig").log;
+const log = @import("diagnostics.zig").log;
 
 fn generateType(type_a: ?*const types.Type) void {
     if (type_a) |type_| {
@@ -365,7 +365,7 @@ fn generateFunctionPrototype(prototype: *const ast.FunctionPrototype) void {
 }
 
 pub fn generateCodeFromAst(allocator: std.mem.Allocator, compilation_unit: *ast.CompilationUnit) void {
-    log("Generating code from AST", .{});
+    log("Generating code from AST", .{}, .{ .module = .General });
     print("\n", .{});
     _ = allocator;
     for (compilation_unit.tree_nodes.items) |node| {

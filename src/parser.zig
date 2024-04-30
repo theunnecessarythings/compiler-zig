@@ -15,7 +15,7 @@ const ds = @import("data_structures.zig");
 const AliasTable = ds.AliasTable;
 const ScopedMap = ds.ScopedMap;
 const Error = diagnostics.Error;
-const log = ds.log;
+const log = diagnostics.log;
 
 pub const AstNodeScope = enum {
     Global,
@@ -138,7 +138,7 @@ pub const Parser = struct {
             file_parent_path = try std.mem.concat(allocator, u8, &[_][]const u8{ file_parent_path, file_separator });
         }
 
-        log("File parent path: {s}", .{file_parent_path});
+        log("File parent path: {s}", .{file_parent_path}, .{ .module = .Parser });
 
         var loop_levels_stack = std.ArrayList(i32).init(allocator);
         _ = try loop_levels_stack.append(0);
@@ -158,7 +158,7 @@ pub const Parser = struct {
     }
 
     pub fn parseCompilationUnit(self: *Self) Error!*ast.CompilationUnit {
-        log("Parsing compilation unit", .{});
+        log("Parsing compilation unit", .{}, .{ .module = .Parser });
         var tree_nodes = std.ArrayList(*ast.Statement).init(self.allocator);
         _ = try self.advancedToken();
         _ = try self.advancedToken();
@@ -193,7 +193,7 @@ pub const Parser = struct {
     }
 
     fn parseImportDeclaration(self: *Self) !std.ArrayList(*ast.Statement) {
-        log("Parsing import declaration", .{});
+        log("Parsing import declaration", .{}, .{ .module = .Parser });
         _ = try self.advancedToken();
         if (self.isCurrentKind(.OpenBrace)) {
             _ = try self.advancedToken();
@@ -229,7 +229,7 @@ pub const Parser = struct {
             return std.ArrayList(*ast.Statement).init(self.allocator);
         }
 
-        log("Library path: {s}", .{library_path});
+        log("Library path: {s}", .{library_path}, .{ .module = .Parser });
         std.fs.cwd().access(library_path, .{}) catch {
             try self.context.diagnostics.reportError(
                 library_name.position,
@@ -242,7 +242,7 @@ pub const Parser = struct {
     }
 
     fn parseLoadDeclaration(self: *Self) !std.ArrayList(*ast.Statement) {
-        log("Parsing load declaration", .{});
+        log("Parsing load declaration", .{}, .{ .module = .Parser });
         _ = try self.advancedToken();
         if (self.isCurrentKind(.OpenBrace)) {
             _ = try self.advancedToken();
@@ -293,7 +293,7 @@ pub const Parser = struct {
     }
 
     fn parseCompiletimeConstantsDeclaration(self: *Self) Error!*ast.Statement {
-        log("Parsing compiletime constants declaration", .{});
+        log("Parsing compiletime constants declaration", .{}, .{ .module = .Parser });
         _ = try self.advancedToken();
         const name = (try self.consumeKind(.Identifier, "Expect const declaraion name")).?;
         try self.assertKind(.Equal, "Expect = after const variable name");
@@ -305,7 +305,7 @@ pub const Parser = struct {
     }
 
     fn parseTypeAliasDeclaration(self: *Self) !void {
-        log("Parsing type alias declaration", .{});
+        log("Parsing type alias declaration", .{}, .{ .module = .Parser });
         const type_token = (try self.consumeKind(.Type, "Expect type keyword")).?;
         _ = type_token;
 
@@ -334,7 +334,7 @@ pub const Parser = struct {
     }
 
     fn parseSingleSourceFile(self: *Self, path: []const u8) Error!std.ArrayList(*ast.Statement) {
-        log("Parsing single source file", .{});
+        log("Parsing single source file", .{}, .{ .module = .Parser });
         const file_name = path;
         const file = std.fs.cwd().openFile(path, .{}) catch return Error.Stop;
         defer file.close();
@@ -351,7 +351,7 @@ pub const Parser = struct {
     }
 
     fn parseDeclarationStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing declaration statement", .{});
+        log("Parsing declaration statement", .{}, .{ .module = .Parser });
         return switch (self.peekCurrent().kind) {
             .Fun => {
                 return try self.parseFunctionDeclaration(FunctionKind.Normal);
@@ -385,7 +385,7 @@ pub const Parser = struct {
     }
 
     fn parseStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing statement", .{});
+        log("Parsing statement", .{}, .{ .module = .Parser });
         return switch (self.current_token.?.kind) {
             .Var => {
                 if (self.isNextKind(.OpenParen)) {
@@ -433,7 +433,7 @@ pub const Parser = struct {
     }
 
     fn parseFieldDeclaration(self: *Self, is_global: bool) Error!*ast.Statement {
-        log("Parsing field declaration", .{});
+        log("Parsing field declaration", .{}, .{ .module = .Parser });
         _ = try self.advancedToken();
         const name = (try self.consumeKind(.Identifier, "Expect identifier as variable name")).?;
 
@@ -461,7 +461,7 @@ pub const Parser = struct {
     }
 
     fn parseDestructuringFieldDeclaration(self: *Self, is_global: bool) Error!*ast.Statement {
-        log("Parsing destructuring field declaration", .{});
+        log("Parsing destructuring field declaration", .{}, .{ .module = .Parser });
         try self.assertKind(.Var, "Expected var keyword");
         try self.assertKind(.OpenParen, "Expect ( after var keyword");
 
@@ -494,7 +494,7 @@ pub const Parser = struct {
     }
 
     fn parseIntrinsicPrototype(self: *Self) Error!*ast.Statement {
-        log("Parsing intrinsic prototype", .{});
+        log("Parsing intrinsic prototype", .{}, .{ .module = .Parser });
         const intrinsic_keyword = (try self.consumeKind(.Identifier, "Expect intrinsic keyword")).?;
         _ = intrinsic_keyword;
 
@@ -573,7 +573,7 @@ pub const Parser = struct {
     }
 
     fn parseFunctionPrototype(self: *Self, kind: FunctionKind, is_external: bool) Error!*ast.Statement {
-        log("Parsing function prototype", .{});
+        log("Parsing function prototype", .{}, .{ .module = .Parser });
         if (is_external) {
             try self.assertKind(.Identifier, "Expect external keyword");
         }
@@ -673,7 +673,7 @@ pub const Parser = struct {
     }
 
     fn parseFunctionDeclaration(self: *Self, kind: FunctionKind) Error!*ast.Statement {
-        log("Parsing function declaration", .{});
+        log("Parsing function declaration", .{}, .{ .module = .Parser });
         const parent_node_scope = self.current_ast_scope;
         self.current_ast_scope = .Function;
         try self.context.constants_table_map.pushNewScope();
@@ -718,7 +718,7 @@ pub const Parser = struct {
     }
 
     fn parseOperatorFunctionDeclaration(self: *Self, kind: FunctionKind) Error!*ast.Statement {
-        log("Parsing operator function declaration", .{});
+        log("Parsing operator function declaration", .{}, .{ .module = .Parser });
         const parent_node_scope = self.current_ast_scope;
         self.current_ast_scope = .Function;
         try self.context.constants_table_map.pushNewScope();
@@ -804,7 +804,7 @@ pub const Parser = struct {
     }
 
     fn parseOperatorFunctionOperator(self: *Self, kind: FunctionKind) !Token {
-        log("Parsing Operator Function Operator", .{});
+        log("Parsing Operator Function Operator", .{}, .{ .module = .Parser });
         var op = try self.peekAndAdvanceToken();
         if (self.isRightShiftOperator(self.peekPrevious(), self.peekCurrent())) {
             _ = try self.advancedToken();
@@ -841,7 +841,7 @@ pub const Parser = struct {
         is_packed: bool,
         is_extern: bool,
     ) Error!*ast.Statement {
-        log("Parsing Structure Declaration", .{});
+        log("Parsing Structure Declaration", .{}, .{ .module = .Parser });
         const struct_token = (try self.consumeKind(.Struct, "Expect struct keyword")).?;
         _ = struct_token;
         const struct_name = (try self.consumeKind(.Identifier, "Expect Symbol as struct name")).?;
@@ -959,7 +959,7 @@ pub const Parser = struct {
     }
 
     fn parseEnumDeclaration(self: *Self) Error!*ast.Statement {
-        log("Parsing Enum Declaration", .{});
+        log("Parsing Enum Declaration", .{}, .{ .module = .Parser });
         const enum_token = (try self.consumeKind(.Enum, "Expect enum keyword")).?;
         _ = enum_token;
         const enum_name = (try self.consumeKind(.Identifier, "Expect Symbol as enum name")).?;
@@ -1040,14 +1040,14 @@ pub const Parser = struct {
     }
 
     fn parseParameter(self: *Self) Error!*ast.Parameter {
-        log("Parsing Parameter", .{});
+        log("Parsing Parameter", .{}, .{ .module = .Parser });
         const name = (try self.consumeKind(.Identifier, "Expect identifier as parameter name")).?;
         const type_ = try self.parseType();
         return self.allocReturn(ast.Parameter, ast.Parameter.init(name, type_));
     }
 
     fn parseBlockStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Block Statement", .{});
+        log("Parsing Block Statement", .{}, .{ .module = .Parser });
         try self.assertKind(.OpenBrace, "Expect { on the start of block");
         var statements = std.ArrayList(*ast.Statement).init(self.allocator);
         while (self.isSourceAvailable() and !self.isCurrentKind(.CloseBrace)) {
@@ -1058,7 +1058,7 @@ pub const Parser = struct {
     }
 
     fn parseReturnStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Return Statement", .{});
+        log("Parsing Return Statement", .{}, .{ .module = .Parser });
         const keyword = (try self.consumeKind(.Return, "Expect return keyword")).?;
         if (self.isCurrentKind(.Semicolon)) {
             try self.assertKind(.Semicolon, "Expect semicolon `;` after return keyword");
@@ -1070,7 +1070,7 @@ pub const Parser = struct {
     }
 
     fn parseDeferStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Defer Statement", .{});
+        log("Parsing Defer Statement", .{}, .{ .module = .Parser });
         const defer_token = (try self.consumeKind(.Defer, "Expect Defer keyword")).?;
         const expression = try self.parseExpression();
         if (expression.getAstNodeType() == .Call) {
@@ -1082,7 +1082,7 @@ pub const Parser = struct {
     }
 
     fn parseBreakStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Break Statement", .{});
+        log("Parsing Break Statement", .{}, .{ .module = .Parser });
         const break_token = (try self.consumeKind(.Break, "Expect break keyword")).?;
         if (self.current_ast_scope != .Condition or self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1] == 0) {
             try self.context.diagnostics.reportError(break_token.position, "break keyword can only be used inside at last one while loop");
@@ -1126,7 +1126,7 @@ pub const Parser = struct {
     }
 
     fn parseContinueStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Continue Statement", .{});
+        log("Parsing Continue Statement", .{}, .{ .module = .Parser });
         const continue_token = (try self.consumeKind(.Continue, "Expect continue keyword")).?;
         if (self.current_ast_scope != .Condition or self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1] == 0) {
             try self.context.diagnostics.reportError(continue_token.position, "continue keyword can only be used inside at last one while loop");
@@ -1171,7 +1171,7 @@ pub const Parser = struct {
     }
 
     fn parseIfStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing If Statement", .{});
+        log("Parsing If Statement", .{}, .{ .module = .Parser });
         const parent_node_scope = self.current_ast_scope;
         self.current_ast_scope = .Condition;
 
@@ -1215,7 +1215,7 @@ pub const Parser = struct {
     }
 
     fn parseForStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing For Statement", .{});
+        log("Parsing For Statement", .{}, .{ .module = .Parser });
         const parent_node_scope = self.current_ast_scope;
         self.current_ast_scope = .Condition;
 
@@ -1291,7 +1291,7 @@ pub const Parser = struct {
     }
 
     fn parseWhileStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing While Statement", .{});
+        log("Parsing While Statement", .{}, .{ .module = .Parser });
         const parent_node_scope = self.current_ast_scope;
         self.current_ast_scope = .Condition;
 
@@ -1307,7 +1307,7 @@ pub const Parser = struct {
     }
 
     fn parseSwitchastatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Switch Statement", .{});
+        log("Parsing Switch Statement", .{}, .{ .module = .Parser });
         const switch_token = (try self.consumeKind(.Switch, "Expect Switch keyword")).?;
         try self.assertKind(.OpenParen, "Expect ( before switch argument");
         const argument = try self.parseExpression();
@@ -1361,19 +1361,19 @@ pub const Parser = struct {
     }
 
     fn parseExpressionStatement(self: *Self) Error!*ast.Statement {
-        log("Parsing Expression Statement", .{});
+        log("Parsing Expression Statement", .{}, .{ .module = .Parser });
         const expression = try self.parseExpression();
         try self.assertKind(.Semicolon, "Expect semicolon `;` after field declaration");
         return self.allocReturn(ast.Statement, ast.Statement{ .expression_statement = ast.ExpressionStatement.init(expression) });
     }
 
     fn parseExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Expression", .{});
+        log("Parsing Expression", .{}, .{ .module = .Parser });
         return try self.parseAssignmentExpression();
     }
 
     fn parseAssignmentExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Assignament Expression", .{});
+        log("Parsing Assignament Expression", .{}, .{ .module = .Parser });
         const expression = try self.parseLogicalOrExpression();
         if (tokenizer.assignmentOperators(self.peekCurrent().kind)) {
             var assignments_token = try self.peekAndAdvanceToken();
@@ -1401,7 +1401,7 @@ pub const Parser = struct {
     }
 
     fn parseLogicalOrExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Logical Or Expression", .{});
+        log("Parsing Logical Or Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseLogicalAndExpression();
         while (self.isCurrentKind(.OrOr)) {
             const or_token = try self.peekAndAdvanceToken();
@@ -1412,7 +1412,7 @@ pub const Parser = struct {
     }
 
     fn parseLogicalAndExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Logical And Expression", .{});
+        log("Parsing Logical And Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseBitwiseAndExpression();
         while (self.isCurrentKind(.AndAnd)) {
             const and_token = try self.peekAndAdvanceToken();
@@ -1423,7 +1423,7 @@ pub const Parser = struct {
     }
 
     fn parseBitwiseAndExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Bitwise And Expression", .{});
+        log("Parsing Bitwise And Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseBitwiseXorExpression();
         while (self.isCurrentKind(.And)) {
             const and_token = try self.peekAndAdvanceToken();
@@ -1434,7 +1434,7 @@ pub const Parser = struct {
     }
 
     fn parseBitwiseXorExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Bitwise Xor Expression", .{});
+        log("Parsing Bitwise Xor Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseBitwiseOrExpression();
         while (self.isCurrentKind(.Xor)) {
             const and_token = try self.peekAndAdvanceToken();
@@ -1445,7 +1445,7 @@ pub const Parser = struct {
     }
 
     fn parseBitwiseOrExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Bitwise Or Expression", .{});
+        log("Parsing Bitwise Or Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseEqualityExpression();
         while (self.isCurrentKind(.Or)) {
             const and_token = try self.peekAndAdvanceToken();
@@ -1456,7 +1456,7 @@ pub const Parser = struct {
     }
 
     fn parseEqualityExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Equality Expression", .{});
+        log("Parsing Equality Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseComparisonExpression();
         while (self.isCurrentKind(.EqualEqual) or self.isCurrentKind(.BangEqual)) {
             const op = try self.peekAndAdvanceToken();
@@ -1467,7 +1467,7 @@ pub const Parser = struct {
     }
 
     fn parseComparisonExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Comparison Expression", .{});
+        log("Parsing Comparison Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseBitwiseShiftExpression();
         while (self.isCurrentKind(.Greater) or self.isCurrentKind(.GreaterEqual) or self.isCurrentKind(.Smaller) or self.isCurrentKind(.SmallerEqual)) {
             const op = try self.peekAndAdvanceToken();
@@ -1487,7 +1487,7 @@ pub const Parser = struct {
     }
 
     fn parseBitwiseShiftExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Bitwise Shift Expression", .{});
+        log("Parsing Bitwise Shift Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseTermExpression();
         while (self.isCurrentKind(.LeftShift) or self.isRightShiftOperator(self.peekCurrent(), self.peekNext())) {
             if (self.isCurrentKind(.LeftShift)) {
@@ -1507,7 +1507,7 @@ pub const Parser = struct {
     }
 
     fn parseTermExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Term Expression", .{});
+        log("Parsing Term Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseFactorExpression();
         while (self.isCurrentKind(.Plus) or self.isCurrentKind(.Minus)) {
             const op = try self.peekAndAdvanceToken();
@@ -1518,7 +1518,7 @@ pub const Parser = struct {
     }
 
     fn parseFactorExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Factor Expression", .{});
+        log("Parsing Factor Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseEnumAccessExpression();
         while (self.isCurrentKind(.Star) or self.isCurrentKind(.Slash) or self.isCurrentKind(.Percent)) {
             const op = try self.peekAndAdvanceToken();
@@ -1529,7 +1529,7 @@ pub const Parser = struct {
     }
 
     fn parseEnumAccessExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Enum Access Expression", .{});
+        log("Parsing Enum Access Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseInfixCallExpression();
         if (self.isCurrentKind(.ColonColon)) {
             const colons_token = try self.peekAndAdvanceToken();
@@ -1561,7 +1561,7 @@ pub const Parser = struct {
     }
 
     fn parseInfixCallExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Infix Call Expression", .{});
+        log("Parsing Infix Call Expression", .{}, .{ .module = .Parser });
         const expression = try self.parsePrefixExpression();
         const current_token_literal = self.peekCurrent().literal;
 
@@ -1579,7 +1579,7 @@ pub const Parser = struct {
     }
 
     fn parsePrefixExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Prefix Expression", .{});
+        log("Parsing Prefix Expression", .{}, .{ .module = .Parser });
         if (tokenizer.unaryOperators(self.peekCurrent().kind)) {
             const token = try self.peekAndAdvanceToken();
             const right = try self.parsePrefixExpression();
@@ -1596,7 +1596,7 @@ pub const Parser = struct {
     }
 
     fn parsePrefixCallExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Prefix Call Expression", .{});
+        log("Parsing Prefix Call Expression", .{}, .{ .module = .Parser });
         const current_token_literal = self.peekCurrent().literal;
         if (self.isCurrentKind(.Identifier) and self.isFunctionDeclarationKind(current_token_literal, .Prefix)) {
             const token = self.peekCurrent();
@@ -1611,7 +1611,7 @@ pub const Parser = struct {
     }
 
     fn parsePostfixIncrementOrDecrement(self: *Self) Error!*ast.Expression {
-        log("Parsing Postfix Increment Or Decrement", .{});
+        log("Parsing Postfix Increment Or Decrement", .{}, .{ .module = .Parser });
         const expression = try self.parseCallOrAccessExpression();
         if (self.isCurrentKind(.PlusPlus) or self.isCurrentKind(.MinusMinus)) {
             const token = try self.peekAndAdvanceToken();
@@ -1622,7 +1622,7 @@ pub const Parser = struct {
     }
 
     fn parseCallOrAccessExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Call Or Access Expression", .{});
+        log("Parsing Call Or Access Expression", .{}, .{ .module = .Parser });
         var expression = try self.parseEnumerationAttributeExpression();
         while (self.isCurrentKind(.Dot) or self.isCurrentKind(.OpenParen) or self.isCurrentKind(.OpenBracket) or (self.isCurrentKind(.Smaller) and expression.getAstNodeType() == .Literal)) {
             if (self.isCurrentKind(.Dot)) {
@@ -1705,7 +1705,7 @@ pub const Parser = struct {
     }
 
     fn parseEnumerationAttributeExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Enumeration Attribute Expression", .{});
+        log("Parsing Enumeration Attribute Expression", .{}, .{ .module = .Parser });
         var expression = try self.parsePostfixCallExpression();
         if (self.isCurrentKind(.Dot) and expression.getAstNodeType() == .Literal) {
             const literal = expression.literal_expression;
@@ -1731,7 +1731,7 @@ pub const Parser = struct {
     }
 
     fn parsePostfixCallExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Postfix Call Expression", .{});
+        log("Parsing Postfix Call Expression", .{}, .{ .module = .Parser });
         const expression = try self.parseInitializerExpression();
         const current_token_literal = self.peekCurrent().literal;
         if (self.isCurrentKind(.Identifier) and self.isFunctionDeclarationKind(current_token_literal, .Postfix)) {
@@ -1747,7 +1747,7 @@ pub const Parser = struct {
     }
 
     fn parseInitializerExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Initializer Expression", .{});
+        log("Parsing Initializer Expression", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Identifier) and self.context.type_alias_table.contains(self.peekCurrent().literal)) {
             const resolved_type = self.context.type_alias_table.resolveAlias(self.peekCurrent().literal);
             if (types.isStructType(resolved_type) or types.isGenericStructType(resolved_type)) {
@@ -1786,7 +1786,7 @@ pub const Parser = struct {
     }
 
     fn parseFunctionCallWithLambdaArgument(self: *Self) Error!*ast.Expression {
-        log("Parsing Function Call With Lambda Argument", .{});
+        log("Parsing Function Call With Lambda Argument", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Identifier) and self.isNextKind(.OpenBrace) and self.isFunctionDeclarationKind(self.peekCurrent().literal, .Normal)) {
             const symbol_token = self.peekCurrent();
             const literal = try self.parseLiteralExpression();
@@ -1799,7 +1799,7 @@ pub const Parser = struct {
     }
 
     fn parsePrimaryExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Primary Expression", .{});
+        log("Parsing Primary Expression", .{}, .{ .module = .Parser });
         const current_token_kind = self.peekCurrent().kind;
         switch (current_token_kind) {
             .Int, .Int1, .Int8, .Int16, .Int32, .Int64, .Uint8, .Uint16, .Uint32, .Uint64, .Float, .Float32, .Float64 => {
@@ -1884,7 +1884,7 @@ pub const Parser = struct {
     }
 
     fn parseLambdaExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Lambda Expression", .{});
+        log("Parsing Lambda Expression", .{}, .{ .module = .Parser });
         const open_brace = (try self.consumeKind(.OpenBrace, "Expect { at the start of lambda expression")).?;
         var parameters = std.ArrayList(*ast.Parameter).init(self.allocator);
         var return_type: ?*Type = null;
@@ -1941,7 +1941,7 @@ pub const Parser = struct {
     }
 
     fn parseNumberExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Number Expression", .{});
+        log("Parsing Number Expression", .{}, .{ .module = .Parser });
         const token = try self.peekAndAdvanceToken();
         const number_kind = try self.getNumberKind(token.kind);
         const number_type = try self.allocReturn(Type, types.Type{ .Number = types.NumberType.init(number_kind) });
@@ -1949,13 +1949,13 @@ pub const Parser = struct {
     }
 
     fn parseLiteralExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Literal Expression", .{});
+        log("Parsing Literal Expression", .{}, .{ .module = .Parser });
         const token = try self.peekAndAdvanceToken();
         return self.allocReturn(ast.Expression, ast.Expression{ .literal_expression = ast.LiteralExpression.init(token) });
     }
 
     fn parseIfExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing If Expression", .{});
+        log("Parsing If Expression", .{}, .{ .module = .Parser });
 
         var tokens = std.ArrayList(Token).init(self.allocator);
         var conditions = std.ArrayList(*ast.Expression).init(self.allocator);
@@ -2006,7 +2006,7 @@ pub const Parser = struct {
     }
 
     fn parseSwitchExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Switch Expression", .{});
+        log("Parsing Switch Expression", .{}, .{ .module = .Parser });
         const switch_token = (try self.consumeKind(.Switch, "Expect Switch keyword")).?;
         try self.assertKind(.OpenParen, "Expect ( before switch argument");
         const argument = try self.parseExpression();
@@ -2073,7 +2073,7 @@ pub const Parser = struct {
     }
 
     fn parseGroupOrTupleExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Group Or Tuple Expression", .{});
+        log("Parsing Group Or Tuple Expression", .{}, .{ .module = .Parser });
         try self.assertKind(.OpenParen, "Expect ( at the start of group or tuple expression");
         const expression = try self.parseExpression();
 
@@ -2099,7 +2099,7 @@ pub const Parser = struct {
     }
 
     fn parseArrayExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Array Expression", .{});
+        log("Parsing Array Expression", .{}, .{ .module = .Parser });
         const token = try self.peekAndAdvanceToken();
         var values = std.ArrayList(*ast.Expression).init(self.allocator);
 
@@ -2115,7 +2115,7 @@ pub const Parser = struct {
     }
 
     fn parseCastExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Cast Expression", .{});
+        log("Parsing Cast Expression", .{}, .{ .module = .Parser });
         const cast_keyword = (try self.consumeKind(.Cast, "Expect cast keyword")).?;
         try self.assertKind(.OpenParen, "Expect ( after cast keyword");
         const target_type = try self.parseType();
@@ -2134,7 +2134,7 @@ pub const Parser = struct {
     }
 
     fn parseTypeSizeExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Type Size Expression", .{});
+        log("Parsing Type Size Expression", .{}, .{ .module = .Parser });
         const type_size_keyword = (try self.consumeKind(.TypeSize, "Expect type_size keyword")).?;
         _ = type_size_keyword;
         try self.assertKind(.OpenParen, "Expect ( after type_size keyword");
@@ -2144,7 +2144,7 @@ pub const Parser = struct {
     }
 
     fn parseTypeAlignExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Type Align Expression", .{});
+        log("Parsing Type Align Expression", .{}, .{ .module = .Parser });
         const type_align_keyword = (try self.consumeKind(.TypeAlign, "Expect type_align keyword")).?;
         _ = type_align_keyword;
         try self.assertKind(.OpenParen, "Expect ( after type_align keyword");
@@ -2154,7 +2154,7 @@ pub const Parser = struct {
     }
 
     fn parseValueSizeExpression(self: *Self) Error!*ast.Expression {
-        log("Parsing Value Size Expression", .{});
+        log("Parsing Value Size Expression", .{}, .{ .module = .Parser });
         const value_size_keyword = (try self.consumeKind(.ValueSize, "Expect value_size keyword")).?;
         _ = value_size_keyword;
         try self.assertKind(.OpenParen, "Expect ( after value_size keyword");
@@ -2164,7 +2164,7 @@ pub const Parser = struct {
     }
 
     fn parseGenericArgumentsIfExists(self: *Self) !std.ArrayList(*Type) {
-        log("Parsing Generic Arguments If Exists", .{});
+        log("Parsing Generic Arguments If Exists", .{}, .{ .module = .Parser });
         var generic_arguments = std.ArrayList(*Type).init(self.allocator);
         if (self.isCurrentKind(.Smaller)) {
             _ = try self.advancedToken();
@@ -2184,7 +2184,7 @@ pub const Parser = struct {
     }
 
     fn parseSwitchOperator(self: *Self) !TokenKind {
-        log("Parsing Switch Operator", .{});
+        log("Parsing Switch Operator", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Comma)) {
             _ = try self.advancedToken();
             const op_token = try self.peekAndAdvanceToken();
@@ -2201,7 +2201,7 @@ pub const Parser = struct {
     }
 
     fn checkGenericParameterName(self: *Self, name: Token) !void {
-        log("Checking Generic parameter Name", .{});
+        log("Checking Generic parameter Name", .{}, .{ .module = .Parser });
         const literal = name.literal;
         const position = name.position;
 
@@ -2237,7 +2237,7 @@ pub const Parser = struct {
     }
 
     fn checkFunctionKindParametersCount(self: *Self, kind: FunctionKind, count: u32, span: TokenSpan) !void {
-        log("Checking Function Kind parameters Count", .{});
+        log("Checking Function Kind parameters Count", .{}, .{ .module = .Parser });
         if (kind == .Prefix and count != 1) {
             try self.context.diagnostics.reportError(span, "Prefix function must have exactly one parameter");
             return Error.Stop;
@@ -2255,7 +2255,7 @@ pub const Parser = struct {
     }
 
     fn checkCompiletimeconstantsExpression(self: *Self, expression: *ast.Expression, position: TokenSpan) !void {
-        log("Checking Compiletime constants Expression", .{});
+        log("Checking Compiletime constants Expression", .{}, .{ .module = .Parser });
         const ast_node_type = expression.getAstNodeType();
 
         // Now we just check tht the value is primitive but later must allow more types
@@ -2276,7 +2276,7 @@ pub const Parser = struct {
     }
 
     fn unexpectedTokenError(self: *Self) !*ast.Expression {
-        log("Unexpected Token Error", .{});
+        log("Unexpected Token Error", .{}, .{ .module = .Parser });
         const current_token = self.peekCurrent();
         const position = current_token.position;
         const token_literal = tokenizer.tokenKindLiteral(current_token.kind);
@@ -2303,7 +2303,7 @@ pub const Parser = struct {
     }
 
     fn checkUnnecessarySemicolonWarning(self: *Self) !void {
-        log("Checking Unnecessry Semicolon Warning", .{});
+        log("Checking Unnecessry Semicolon Warning", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Semicolon)) {
             const semicolon = try self.peekAndAdvanceToken();
             if (self.context.options.should_report_warns) {
@@ -2313,7 +2313,7 @@ pub const Parser = struct {
     }
 
     fn getNumberKind(self: *Self, token: TokenKind) !types.NumberKind {
-        log("Getting Number Kind", .{});
+        log("Getting Number Kind", .{}, .{ .module = .Parser });
         switch (token) {
             .Int => return .Integer64,
             .Int1 => return .Integer1,
@@ -2336,7 +2336,7 @@ pub const Parser = struct {
     }
 
     fn isFunctionDeclarationKind(self: *Self, literal: []const u8, kind: FunctionKind) bool {
-        log("Is Function Declration Kind", .{});
+        log("Is Function Declration Kind", .{}, .{ .module = .Parser });
         if (self.context.functions.contains(literal)) {
             return self.context.functions.get(literal) == kind;
         }
@@ -2346,7 +2346,7 @@ pub const Parser = struct {
 
     fn isValidIntrinsicName(self: *Self, name: Token) bool {
         _ = self;
-        log("Is Valid Intrinsic Name", .{});
+        log("Is Valid Intrinsic Name", .{}, .{ .module = .Parser });
         if (name.literal.len == 0) {
             return false;
         }
@@ -2358,7 +2358,7 @@ pub const Parser = struct {
     }
 
     fn resolveFieldSelfReference(self: *Self, field_type: *Type, current_struct_ptr_type: *types.PointerType) !*Type {
-        log("Resolving Field Self Reference", .{});
+        log("Resolving Field Self Reference", .{}, .{ .module = .Parser });
         if (field_type.typeKind() == .Pointer) {
             var pointer_type = field_type.Pointer;
             if (pointer_type.base_type.typeKind() == .None) {
@@ -2453,7 +2453,7 @@ pub const Parser = struct {
     }
 
     fn assertKind(self: *Self, kind: TokenKind, message: []const u8) !void {
-        log("Asserting Kind: {any}, {s}", .{ kind, message });
+        log("Asserting Kind: {any}, {s}", .{ kind, message }, .{ .module = .Parser });
         if (self.isCurrentKind(kind)) {
             _ = try self.advancedToken();
             return;
@@ -2482,7 +2482,7 @@ pub const Parser = struct {
     }
 
     fn parseType(self: *Self) Error!*types.Type {
-        log("Parsing Type", .{});
+        log("Parsing Type", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.At)) {
             return try self.parseTypesDirective();
         }
@@ -2491,7 +2491,7 @@ pub const Parser = struct {
     }
 
     fn parseTypeWithPrefix(self: *Self) Error!*types.Type {
-        log("Parsing Type With Prefix", .{});
+        log("Parsing Type With Prefix", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Fun)) {
             return try self.parseFunctionPtrType();
         }
@@ -2512,13 +2512,13 @@ pub const Parser = struct {
     }
 
     fn parsePointerToType(self: *Self) Error!*Type {
-        log("Parsing Pointer To Type", .{});
+        log("Parsing Pointer To Type", .{}, .{ .module = .Parser });
         try self.assertKind(.Star, "Pointer type must be started with *");
         return self.allocReturn(types.Type, Type{ .Pointer = types.PointerType.init(try self.parseTypeWithPrefix()) });
     }
 
     fn parseFunctionPtrType(self: *Self) Error!*Type {
-        log("Parsing function pointer type", .{});
+        log("Parsing function pointer type", .{}, .{ .module = .Parser });
         try self.assertKind(.Fun, "Expect fun keyword at the start of function ptr");
         const paren = self.peekCurrent();
         const parameters_types = try self.parseListOfTypes();
@@ -2537,7 +2537,7 @@ pub const Parser = struct {
     }
 
     fn parseTupleType(self: *Self) Error!*Type {
-        log("Parsing tuple type", .{});
+        log("Parsing tuple type", .{}, .{ .module = .Parser });
         const paren = self.peekCurrent();
         const field_types = try self.parseListOfTypes();
 
@@ -2553,7 +2553,7 @@ pub const Parser = struct {
     }
 
     fn parseListOfTypes(self: *Self) !std.ArrayList(*Type) {
-        log("Parsing List of Types", .{});
+        log("Parsing List of Types", .{}, .{ .module = .Parser });
         try self.assertKind(.OpenParen, "Expect ( before types");
         var types_list = std.ArrayList(*Type).init(self.allocator);
 
@@ -2571,7 +2571,7 @@ pub const Parser = struct {
     }
 
     fn parseFixedSizeArrayType(self: *Self) Error!*Type {
-        log("Parsing Fixed Size Array Type", .{});
+        log("Parsing Fixed Size Array Type", .{}, .{ .module = .Parser });
         try self.assertKind(.OpenBracket, "Expect [ for fixed size array type");
 
         if (self.isCurrentKind(.CloseBracket)) {
@@ -2604,7 +2604,7 @@ pub const Parser = struct {
     }
 
     fn parseTypeWithPostfix(self: *Self) Error!*Type {
-        log("Parsing type with postfix", .{});
+        log("Parsing type with postfix", .{}, .{ .module = .Parser });
         const type_ = try self.parseGenericStructType();
 
         // Report useful message when user create pointer type with prefix `*` like in C
@@ -2617,7 +2617,7 @@ pub const Parser = struct {
     }
 
     fn parseGenericStructType(self: *Self) Error!*Type {
-        log("Parsing Generic Struct Type", .{});
+        log("Parsing Generic Struct Type", .{}, .{ .module = .Parser });
         var type_ = try self.parsePrimaryType();
 
         // parse generic struct type with types parameters
@@ -2661,7 +2661,7 @@ pub const Parser = struct {
     }
 
     fn parsePrimaryType(self: *Self) Error!*Type {
-        log("Parsing Primary Type", .{});
+        log("Parsing Primary Type", .{}, .{ .module = .Parser });
         if (self.isCurrentKind(.Identifier)) {
             return self.parseIdentifierType();
         }
@@ -2677,7 +2677,7 @@ pub const Parser = struct {
     }
 
     fn parseIdentifierType(self: *Self) Error!*Type {
-        log("Parsing Identifier Type", .{});
+        log("Parsing Identifier Type", .{}, .{ .module = .Parser });
         const symbol_token = (try self.consumeKind(.Identifier, "Expect identifier s type")).?;
         const type_literal = symbol_token.literal;
 
@@ -2719,7 +2719,7 @@ pub const Parser = struct {
     }
 
     fn parseDeclarationsDirective(self: *Self) Error!*ast.Statement {
-        log("Parsing Declarations Directive", .{});
+        log("Parsing Declarations Directive", .{}, .{ .module = .Parser });
         const hash_token = (try self.consumeKind(.At, "Expect @ before directive name")).?;
         const position = hash_token.position;
 
@@ -2800,7 +2800,7 @@ pub const Parser = struct {
     }
 
     fn parseStatementsDirective(self: *Self) Error!*ast.Statement {
-        log("Parsing Statements Directive", .{});
+        log("Parsing Statements Directive", .{}, .{ .module = .Parser });
         try self.assertKind(.At, "Expect @ before directive name");
         const directive = (try self.consumeKind(.Identifier, "Expect symbol s directive name")).?;
         const directive_name = directive.literal;
@@ -2822,7 +2822,7 @@ pub const Parser = struct {
     }
 
     fn parseExpressionsDirective(self: *Self) Error!*ast.Expression {
-        log("Parsing Expressions Directive", .{});
+        log("Parsing Expressions Directive", .{}, .{ .module = .Parser });
         try self.assertKind(.At, "Expect @ before directive name");
         const directive = (try self.consumeKind(.Identifier, "Expect symbol s directive name")).?;
         const directive_name = directive.literal;
@@ -2943,7 +2943,7 @@ pub const Parser = struct {
     }
 
     fn parseTypesDirective(self: *Self) Error!*types.Type {
-        log("Parsing Types Directive", .{});
+        log("Parsing Types Directive", .{}, .{ .module = .Parser });
         try self.assertKind(.At, "Expect @ before directive name");
         const directive = (try self.consumeKind(.Identifier, "Expect symbol s directive name")).?;
         const directive_name = directive.literal;

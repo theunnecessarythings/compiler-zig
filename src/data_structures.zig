@@ -67,13 +67,18 @@ pub fn ScopedMap(comptime V: type) type {
             _ = self.linked_scoped.pop();
         }
 
-        pub fn printKeys(self: *const Self) void {
+        pub fn print(self: *const Self) void {
             const len = self.linked_scoped.items.len;
             var i: i64 = @intCast(len - 1);
             while (i >= 0) : (i -= 1) {
                 const keys = self.linked_scoped.items[@intCast(i)].keys();
                 for (keys) |key| {
-                    log("Level {d}: {s}", .{ i, key }, .{ .module = .General });
+                    const item = self.linked_scoped.items[@intCast(i)].get(key).?;
+                    if (item.Type.typeKind() == .StaticArray) {
+                        log("Level {d}: {s} => {any}", .{ i, key, item.Type.StaticArray.element_type }, .{ .module = .General });
+                    } else {
+                        log("Level {d}: {s} => {any}", .{ i, key, item.Type }, .{ .module = .General });
+                    }
                 }
             }
         }

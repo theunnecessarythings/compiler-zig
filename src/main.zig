@@ -21,6 +21,7 @@ fn runCmd(allocator: std.mem.Allocator, file_path: []const u8, cmd: []const u8) 
         }
         return;
     } else {
+        std.debug.print("Running command \x1b[34m\x1b[1m{s}\x1b[0m on file `{s}` \n", .{ cmd, file_path });
         const source_manager = try allocator.create(SourceManager);
         source_manager.* = SourceManager.init(allocator);
         const context = try allocator.create(Context);
@@ -31,7 +32,7 @@ fn runCmd(allocator: std.mem.Allocator, file_path: []const u8, cmd: []const u8) 
         if (std.mem.eql(u8, cmd, "check")) {
             compiler.checkSourceCode(file_path);
         } else if (std.mem.eql(u8, cmd, "compile")) {
-            compiler.compileSourceCode(file_path);
+            try compiler.compileSourceCode(file_path);
         } else if (std.mem.eql(u8, cmd, "emit-ir")) {
             compiler.emitLLVMIR(file_path);
         } else if (std.mem.eql(u8, cmd, "generate-code")) {
@@ -63,7 +64,9 @@ fn setLogTypes(types: []const u8) void {
 pub fn main() !void {
     const dir = try std.fs.cwd().openDir("examples", .{ .iterate = true });
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    const allocator = arena.allocator();
+    defer arena.deinit();
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
@@ -84,6 +87,8 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
+    const start = try std.time.Instant.now();
+
     if (command) |cmd| {
         if (std.mem.eql(u8, cmd, "check")) {
             try runCmd(allocator, file_path.?, "check");
@@ -98,4 +103,10 @@ pub fn main() !void {
             std.process.exit(1);
         }
     }
+
+    const end = try std.time.Instant.now();
+    const elapsed = end.since(start);
+
+    std.debug.print("Time taken: {d} ms \n", .{elapsed / 1000_000});
+    // std.debug.print("Memory usage: {d} bytes \n", .{arena.queryCapacity()});
 }

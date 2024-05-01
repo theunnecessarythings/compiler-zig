@@ -6,7 +6,8 @@ fun return_generic_array<T>(t T) [3]T {
 
 fun main() int64 {
     var long_ptr : [3]int64 = return_generic_array<int64>(1);
-    var integer_ptr : [3]int32 = return_generic_array<int32>(1i32);
     var short_ptr : [3]int16 = return_generic_array<int16>(1i16);
+    var integer_ptr : [3]int32 = return_generic_array<int32>(1i32);
+
     return 0;
 }

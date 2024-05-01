@@ -26,8 +26,38 @@ fn generateType(type_a: ?*const types.Type) void {
             .GenericParameter => |*x| {
                 print("{s}", .{x.name});
             },
+            .Struct => |*x| {
+                print("struct {s} ", .{x.name});
+                if (x.is_generic) {
+                    print("<", .{});
+                    for (x.generic_parameters.items) |parameter| {
+                        print("{s} ", .{parameter});
+                        print(", ", .{});
+                    }
+                    print(">", .{});
+                }
+                print("{{\n", .{});
+                for (0..x.field_types.items.len) |i| {
+                    print("    {s} ", .{x.field_names.items[i]});
+                    generateType(x.field_types.items[i]);
+                    print(";\n", .{});
+                }
+                print("}}", .{});
+            },
+            .GenericStruct => |*y| {
+                const x = y.struct_type;
+                print("{s} ", .{x.name});
+                if (x.is_generic) {
+                    print("<", .{});
+                    for (x.generic_parameter_types.items) |parameter| {
+                        generateType(parameter);
+                        print(", ", .{});
+                    }
+                    print(">", .{});
+                }
+            },
             else => {
-                std.log.err("Unknown type: {any}", .{@TypeOf(type_)});
+                std.log.err("Unknown type: {any}", .{type_.typeKind()});
             },
         }
     } else {
@@ -118,9 +148,11 @@ fn generateStatement(statement: *const ast.Statement, space: u32) void {
             print("for ", .{});
             generateStatement(x.body, space + 1);
         },
-
+        .struct_declaration => |*x| {
+            generateType(x.struct_type);
+        },
         else => {
-            std.log.err("Unknown statement type: {any}", .{@TypeOf(statement)});
+            std.log.err("Unknown statement type: {any}", .{statement.getAstNodeType()});
         },
     }
     print(";\n", .{});
@@ -269,8 +301,19 @@ fn generateExpression(expression: *const ast.Expression) void {
             }
             print("}}", .{});
         },
+        .init_expression => |*x| {
+            generateType(x.value_type);
+            print("(", .{});
+            for (x.arguments.items) |arg| {
+                generateExpression(arg);
+                if (arg != x.arguments.items[x.arguments.items.len - 1]) {
+                    print(", ", .{});
+                }
+            }
+            print(")", .{});
+        },
         else => {
-            std.log.err("Unknown expression type: {any}", .{@TypeOf(expression)});
+            std.log.err("Unknown expression type: {any}", .{expression.getAstNodeType()});
         },
     }
 }

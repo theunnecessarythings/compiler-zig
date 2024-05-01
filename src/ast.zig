@@ -158,6 +158,12 @@ pub const Expression = union(enum) {
             inline else => |*x| x.isConstant(),
         };
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        return switch (self.*) {
+            inline else => |*x| x.jsonStringify(jws),
+        };
+    }
 };
 
 pub const Statement = union(enum) {
@@ -195,6 +201,12 @@ pub const Statement = union(enum) {
             inline else => |*x| x.accept(visitor),
         };
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        switch (self.*) {
+            inline else => |*x| try x.jsonStringify(jws),
+        }
+    }
 };
 
 pub const BlockStatement = struct {
@@ -213,6 +225,13 @@ pub const BlockStatement = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Block;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("statements");
+        try jws.write(self.statements.items);
+        try jws.endObject();
     }
 };
 
@@ -246,6 +265,21 @@ pub const FieldDeclaration = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.FieldDeclaration;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("field_type");
+        try jws.write(self.field_type);
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.objectField("is_global");
+        try jws.write(self.is_global);
+        try jws.objectField("has_explicit_type");
+        try jws.write(self.has_explicit_type);
+        try jws.endObject();
     }
 };
 
@@ -282,6 +316,21 @@ pub const DestructuringDeclaration = struct {
         _ = self;
         return AstNodeType.DestructuringDeclaration;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("names");
+        try jws.write(self.names.items);
+        try jws.objectField("value_types");
+        try jws.write(self.value_types.items);
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.objectField("equal_token");
+        try jws.write(self.equal_token);
+        try jws.objectField("is_global");
+        try jws.write(self.is_global);
+        try jws.endObject();
+    }
 };
 
 pub const ConstDeclaration = struct {
@@ -304,6 +353,15 @@ pub const ConstDeclaration = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.FieldDeclaration;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
     }
 };
 
@@ -349,6 +407,27 @@ pub const FunctionPrototype = struct {
         _ = self;
         return AstNodeType.Prototype;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("return_type");
+        try jws.write(self.return_type);
+        try jws.objectField("parameters");
+        try jws.write(self.parameters.items);
+        try jws.objectField("is_external");
+        try jws.write(self.is_external);
+        try jws.objectField("has_varargs");
+        try jws.write(self.has_varargs);
+        try jws.objectField("varargs_type");
+        try jws.write(self.varargs_type);
+        try jws.objectField("is_generic");
+        try jws.write(self.is_generic);
+        try jws.objectField("generic_parameters");
+        try jws.write(self.generic_parameters.items);
+        try jws.endObject();
+    }
 };
 
 pub const IntrinsicPrototype = struct {
@@ -387,6 +466,23 @@ pub const IntrinsicPrototype = struct {
         _ = self;
         return AstNodeType.Intrinsic;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("native_name");
+        try jws.write(self.native_name);
+        try jws.objectField("parameters");
+        try jws.write(self.parameters.items);
+        try jws.objectField("return_type");
+        try jws.write(self.return_type);
+        try jws.objectField("varargs");
+        try jws.write(self.varargs);
+        try jws.objectField("varargs_type");
+        try jws.write(self.varargs_type);
+        try jws.endObject();
+    }
 };
 
 pub const FunctionDeclaration = struct {
@@ -409,6 +505,15 @@ pub const FunctionDeclaration = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Function;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("prototype");
+        try jws.write(self.prototype);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
     }
 };
 
@@ -433,6 +538,15 @@ pub const OperatorFunctionDeclaration = struct {
         _ = self;
         return AstNodeType.OperatorFunction;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("op");
+        try jws.write(self.op);
+        try jws.objectField("function");
+        try jws.write(self.function);
+        try jws.endObject();
+    }
 };
 
 pub const StructDeclaration = struct {
@@ -453,6 +567,13 @@ pub const StructDeclaration = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Struct;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("struct_type");
+        try jws.write(self.struct_type);
+        try jws.endObject();
     }
 };
 
@@ -476,6 +597,15 @@ pub const EnumDeclaration = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Enum;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("enum_type");
+        try jws.write(self.enum_type);
+        try jws.endObject();
     }
 };
 
@@ -516,6 +646,15 @@ pub const IfStatement = struct {
         _ = self;
         return AstNodeType.IfStatement;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("conditional_blocks");
+        try jws.write(self.conditional_blocks.items);
+        try jws.objectField("has_else");
+        try jws.write(self.has_else);
+        try jws.endObject();
+    }
 };
 
 pub const ForRangeStatement = struct {
@@ -554,6 +693,21 @@ pub const ForRangeStatement = struct {
         _ = self;
         return AstNodeType.ForRange;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("element_name");
+        try jws.write(self.element_name);
+        try jws.objectField("range_start");
+        try jws.write(self.range_start);
+        try jws.objectField("range_end");
+        try jws.write(self.range_end);
+        try jws.objectField("step");
+        try jws.write(self.step);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
+    }
 };
 
 pub const ForEachStatement = struct {
@@ -589,6 +743,19 @@ pub const ForEachStatement = struct {
         _ = self;
         return AstNodeType.ForEach;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("element_name");
+        try jws.write(self.element_name);
+        try jws.objectField("index_name");
+        try jws.write(self.index_name);
+        try jws.objectField("collection");
+        try jws.write(self.collection);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
+    }
 };
 
 pub const ForEverStatement = struct {
@@ -611,6 +778,13 @@ pub const ForEverStatement = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.ForEver;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
     }
 };
 
@@ -637,6 +811,15 @@ pub const WhileStatement = struct {
         _ = self;
         return AstNodeType.While;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("condition");
+        try jws.write(self.condition);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
+    }
 };
 
 pub const SwitchCase = struct {
@@ -652,6 +835,15 @@ pub const SwitchCase = struct {
             .values = values,
             .body = body,
         };
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("values");
+        try jws.write(self.values.items);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
     }
 };
 
@@ -691,6 +883,21 @@ pub const SwitchStatement = struct {
         _ = self;
         return AstNodeType.SwitchStatement;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("argument");
+        try jws.write(self.argument);
+        try jws.objectField("cases");
+        try jws.write(self.cases.items);
+        try jws.objectField("op");
+        try jws.write(self.op);
+        try jws.objectField("has_default_case");
+        try jws.write(self.has_default_case);
+        try jws.objectField("should_perform_complete_check");
+        try jws.write(self.should_perform_complete_check);
+        try jws.endObject();
+    }
 };
 
 pub const ReturnStatement = struct {
@@ -716,6 +923,15 @@ pub const ReturnStatement = struct {
         _ = self;
         return AstNodeType.Return;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.objectField("has_value");
+        try jws.write(self.has_value);
+        try jws.endObject();
+    }
 };
 
 pub const DeferStatement = struct {
@@ -736,6 +952,13 @@ pub const DeferStatement = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Defer;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("call_expression");
+        try jws.write(self.call_expression);
+        try jws.endObject();
     }
 };
 
@@ -762,6 +985,15 @@ pub const BreakStatement = struct {
         _ = self;
         return AstNodeType.Break;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("has_times");
+        try jws.write(self.has_times);
+        try jws.objectField("times");
+        try jws.write(self.times);
+        try jws.endObject();
+    }
 };
 
 pub const ContinueStatement = struct {
@@ -787,6 +1019,15 @@ pub const ContinueStatement = struct {
         _ = self;
         return AstNodeType.Continue;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("has_times");
+        try jws.write(self.has_times);
+        try jws.objectField("times");
+        try jws.write(self.times);
+        try jws.endObject();
+    }
 };
 
 pub const ExpressionStatement = struct {
@@ -807,6 +1048,13 @@ pub const ExpressionStatement = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.ExpressionStatement;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("expression");
+        try jws.write(self.expression);
+        try jws.endObject();
     }
 };
 
@@ -862,6 +1110,15 @@ pub const IfExpression = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.IfExpression;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("conditions");
+        try jws.write(self.conditions.items);
+        try jws.objectField("values");
+        try jws.write(self.values.items);
+        try jws.endObject();
     }
 };
 
@@ -930,6 +1187,21 @@ pub const SwitchExpression = struct {
         _ = self;
         return AstNodeType.SwitchExpression;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("argument");
+        try jws.write(self.argument);
+        try jws.objectField("switch_cases");
+        try jws.write(self.switch_cases.items);
+        try jws.objectField("switch_case_values");
+        try jws.write(self.switch_case_values.items);
+        try jws.objectField("default_value");
+        try jws.write(self.default_value);
+        try jws.objectField("op");
+        try jws.write(self.op);
+        try jws.endObject();
+    }
 };
 
 pub const TupleExpression = struct {
@@ -967,6 +1239,13 @@ pub const TupleExpression = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Tuple;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("values");
+        try jws.write(self.values.items);
+        try jws.endObject();
     }
 };
 
@@ -1008,6 +1287,15 @@ pub const AssignExpression = struct {
         _ = self;
         return AstNodeType.Assign;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("left");
+        try jws.write(self.left);
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
+    }
 };
 
 pub const BinaryExpression = struct {
@@ -1046,6 +1334,15 @@ pub const BinaryExpression = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Binary;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("left");
+        try jws.write(self.left);
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
     }
 };
 
@@ -1086,6 +1383,15 @@ pub const BitwiseExpression = struct {
         _ = self;
         return AstNodeType.Bitwise;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("left");
+        try jws.write(self.left);
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
+    }
 };
 
 pub const ComparisonExpression = struct {
@@ -1124,6 +1430,15 @@ pub const ComparisonExpression = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.Comparison;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("left");
+        try jws.write(self.left);
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
     }
 };
 
@@ -1164,6 +1479,15 @@ pub const LogicalExpression = struct {
         _ = self;
         return AstNodeType.Logical;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("left");
+        try jws.write(self.left);
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
+    }
 };
 
 pub const PrefixUnaryExpression = struct {
@@ -1201,6 +1525,13 @@ pub const PrefixUnaryExpression = struct {
         _ = self;
         return AstNodeType.PrefixUnary;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
+    }
 };
 
 pub const PostfixUnaryExpression = struct {
@@ -1237,6 +1568,13 @@ pub const PostfixUnaryExpression = struct {
     pub fn getAstNodeType(self: *const Self) AstNodeType {
         _ = self;
         return AstNodeType.PostfixUnary;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("right");
+        try jws.write(self.right);
+        try jws.endObject();
     }
 };
 
@@ -1285,6 +1623,17 @@ pub const CallExpression = struct {
         _ = self;
         return AstNodeType.Call;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("callee");
+        try jws.write(self.callee);
+        try jws.objectField("arguments");
+        try jws.write(self.arguments.items);
+        try jws.objectField("generic_arguments");
+        try jws.write(self.generic_arguments.items);
+        try jws.endObject();
+    }
 };
 
 pub const InitExpression = struct {
@@ -1326,6 +1675,13 @@ pub const InitExpression = struct {
             }
         }
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("arguments");
+        try jws.write(self.arguments.items);
+        try jws.endObject();
     }
 };
 
@@ -1399,6 +1755,21 @@ pub const LambdaExpression = struct {
         _ = self;
         return true;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("explicit_parameters");
+        try jws.write(self.explicit_parameters.items);
+        try jws.objectField("implicit_parameter_names");
+        try jws.write(self.implicit_parameter_names.items);
+        try jws.objectField("implicit_parameter_types");
+        try jws.write(self.implicit_parameter_types.items);
+        try jws.objectField("return_type");
+        try jws.write(self.return_type);
+        try jws.objectField("body");
+        try jws.write(self.body);
+        try jws.endObject();
+    }
 };
 
 pub const DotExpression = struct {
@@ -1440,6 +1811,15 @@ pub const DotExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         return self.is_constant;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("callee");
+        try jws.write(self.callee);
+        try jws.objectField("field_name");
+        try jws.write(self.field_name);
+        try jws.endObject();
+    }
 };
 
 pub const CastExpression = struct {
@@ -1477,6 +1857,15 @@ pub const CastExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         return self.value.isConstant();
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
+        try jws.endObject();
+    }
 };
 
 pub const TypeSizeExpression = struct {
@@ -1512,6 +1901,13 @@ pub const TypeSizeExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
+        try jws.endObject();
     }
 };
 
@@ -1549,6 +1945,13 @@ pub const TypeAlignExpression = struct {
         _ = self;
         return true;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
+        try jws.endObject();
+    }
 };
 
 pub const ValueSizeExpression = struct {
@@ -1584,6 +1987,13 @@ pub const ValueSizeExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
     }
 };
 
@@ -1624,6 +2034,15 @@ pub const IndexExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         return self.index.isConstant();
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("index");
+        try jws.write(self.index);
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
+    }
 };
 
 pub const EnumAccessExpression = struct {
@@ -1663,6 +2082,17 @@ pub const EnumAccessExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("element_name");
+        try jws.write(self.element_name);
+        try jws.objectField("enum_name");
+        try jws.write(self.enum_name);
+        try jws.objectField("enum_element_index");
+        try jws.write(self.enum_element_index);
+        try jws.endObject();
     }
 };
 
@@ -1723,6 +2153,13 @@ pub const ArrayExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         return self.is_constants_array;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("values");
+        try jws.write(self.values.items);
+        try jws.endObject();
+    }
 };
 
 pub const VectorExpression = struct {
@@ -1763,6 +2200,13 @@ pub const VectorExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         return self.array.isConstant();
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("array");
+        try jws.write(self.array);
+        try jws.endObject();
+    }
 };
 
 pub const StringExpression = struct {
@@ -1798,6 +2242,13 @@ pub const StringExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
     }
 };
 
@@ -1840,6 +2291,13 @@ pub const LiteralExpression = struct {
     pub fn setConstant(self: *Self, constants: bool) void {
         self.constants = constants;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.endObject();
+    }
 };
 
 pub const NumberExpression = struct {
@@ -1875,6 +2333,13 @@ pub const NumberExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
     }
 };
 
@@ -1912,6 +2377,13 @@ pub const CharacterExpression = struct {
         _ = self;
         return true;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
+    }
 };
 
 pub const BoolExpression = struct {
@@ -1947,6 +2419,13 @@ pub const BoolExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
     }
 };
 
@@ -1986,6 +2465,13 @@ pub const NullExpression = struct {
         _ = self;
         return true;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value");
+        try jws.write(self.value);
+        try jws.endObject();
+    }
 };
 
 pub const UndefinedExpression = struct {
@@ -2022,6 +2508,13 @@ pub const UndefinedExpression = struct {
         _ = self;
         return true;
     }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("keyword");
+        try jws.write(self.keyword);
+        try jws.endObject();
+    }
 };
 
 pub const InfinityExpression = struct {
@@ -2055,6 +2548,13 @@ pub const InfinityExpression = struct {
     pub fn isConstant(self: *const Self) bool {
         _ = self;
         return true;
+    }
+
+    pub fn jsonStringify(self: *const Self, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
+        try jws.endObject();
     }
 };
 

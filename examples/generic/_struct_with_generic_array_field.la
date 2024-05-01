@@ -17,7 +17,7 @@ fun main() int64 {
       var i = it_index;
       for (it) {
          printf("Values[%d][%d] = %d\n", i, it_index, it);
-      }
+     }
    }
    return 0;
 }

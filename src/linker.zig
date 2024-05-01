@@ -18,6 +18,8 @@ pub const ExternalLinker = struct {
         var linker_flags = std.ArrayList([]const u8).init(allocator);
         linker_flags.append("-no-pie") catch unreachable;
         linker_flags.append("-flto") catch unreachable;
+        linker_flags.append("-lm") catch unreachable;
+
         return ExternalLinker{
             .allocator = allocator,
             .potential_linker_names = potential_linker_names,
@@ -30,11 +32,10 @@ pub const ExternalLinker = struct {
         var linker_command_builder = std.ArrayList([]const u8).init(self.allocator);
         try linker_command_builder.append(self.current_linker_name);
 
+        try linker_command_builder.append(object_file_path);
         for (self.linker_flags.items) |flag| {
             try linker_command_builder.append(flag);
         }
-
-        try linker_command_builder.append(object_file_path);
 
         try linker_command_builder.append("-o");
         try linker_command_builder.append(object_file_path[0 .. object_file_path.len - 2]);
@@ -51,9 +52,12 @@ pub const ExternalLinker = struct {
             self.allocator.free(result.stdout);
             self.allocator.free(result.stderr);
         }
-
-        std.debug.print("{s}\n", .{result.stdout});
-        std.debug.print("{s}\n", .{result.stderr});
+        if (result.stdout.len != 0) {
+            std.debug.print("{s}\n", .{result.stdout});
+        }
+        if (result.stderr.len != 0) {
+            std.debug.print("{s}\n", .{result.stderr});
+        }
 
         return 0;
     }

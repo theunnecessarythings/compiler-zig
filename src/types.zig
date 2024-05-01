@@ -224,6 +224,27 @@ pub const FunctionType = struct {
             .generic_names = generic_names,
         };
     }
+
+    pub fn jsonStringify(self: *const FunctionType, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("parameters");
+        try jws.write(self.parameters.items);
+        try jws.objectField("return_type");
+        try jws.write(self.return_type);
+        try jws.objectField("has_varargs");
+        try jws.write(self.has_varargs);
+        try jws.objectField("varargs_type");
+        try jws.write(self.varargs_type);
+        try jws.objectField("is_intrinsic");
+        try jws.write(self.is_intrinsic);
+        try jws.objectField("is_generic");
+        try jws.write(self.is_generic);
+        try jws.objectField("generic_names");
+        try jws.write(self.generic_names.items);
+        try jws.endObject();
+    }
 };
 
 pub const StructType = struct {
@@ -256,6 +277,27 @@ pub const StructType = struct {
             .is_extern = is_extern,
         };
     }
+
+    pub fn jsonStringify(self: *const StructType, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("field_names");
+        try jws.write(self.field_names.items);
+        try jws.objectField("field_types");
+        try jws.write(self.field_types.items);
+        try jws.objectField("generic_parameters");
+        try jws.write(self.generic_parameters.items);
+        try jws.objectField("generic_parameter_types");
+        try jws.write(self.generic_parameter_types.items);
+        try jws.objectField("is_packed");
+        try jws.write(self.is_packed);
+        try jws.objectField("is_generic");
+        try jws.write(self.is_generic);
+        try jws.objectField("is_extern");
+        try jws.write(self.is_extern);
+        try jws.endObject();
+    }
 };
 
 pub const TupleType = struct {
@@ -267,6 +309,15 @@ pub const TupleType = struct {
             .name = name,
             .field_types = field_types,
         };
+    }
+
+    pub fn jsonStringify(self: *const TupleType, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.objectField("field_types");
+        try jws.write(self.field_types.items);
+        try jws.endObject();
     }
 };
 
@@ -285,6 +336,22 @@ pub const EnumType = struct {
             .values = values,
             .element_type = element_type,
         };
+    }
+
+    pub fn jsonStringify(self: *const EnumType, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("name");
+        try jws.write(self.name);
+        try jws.beginObject();
+        var it = self.values.iterator();
+        while (it.next()) |kv| {
+            try jws.objectField(kv.key_ptr.*);
+            try jws.write(kv.value_ptr.*);
+        }
+        try jws.endObject();
+        try jws.objectField("element_type");
+        try jws.write(self.element_type);
+        try jws.endObject();
     }
 };
 
@@ -319,6 +386,15 @@ pub const GenericStructType = struct {
             .struct_type = struct_type,
             .parameters = parameters,
         };
+    }
+
+    pub fn jsonStringify(self: *const GenericStructType, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("struct_type");
+        try jws.write(self.struct_type);
+        try jws.objectField("parameters");
+        try jws.write(self.parameters.items);
+        try jws.endObject();
     }
 };
 

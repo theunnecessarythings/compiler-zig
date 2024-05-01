@@ -1,7 +1,10 @@
-@intrinsic("llvm.cos")
+@extern fun printf(format *char, varargs Any) int64;
+
+@intrinsic("llvm.cos.f64")
 fun cos_f64(f float64) float64;
 
 fun main() int64 {
     var result = cos_f64(1f64);
+    printf("%.6f\n", result);
     return 0;
 }

@@ -129,7 +129,7 @@ pub const Compiler = struct {
         }
     }
 
-    pub fn compileSourceCode(self: *Self, source_file: []const u8) void {
+    pub fn compileSourceCode(self: *Self, source_file: []const u8) !void {
         var external_linker = linker.ExternalLinker.init(self.allocator);
         if (self.context.options.linker_extra_flags.items.len > 0) {
             for (self.context.options.linker_extra_flags.items) |flag| {
@@ -145,6 +145,25 @@ pub const Compiler = struct {
         }
 
         const compilation_unit = self.parseSouceCode(source_file);
+        const out = std.json.fmt(
+            compilation_unit.tree_nodes.items,
+            .{ .whitespace = .indent_2 },
+        );
+        const json_string = try std.fmt.allocPrint(self.allocator, "{any}\n", .{out});
+        const file = std.fs.cwd().createFile(
+            "ast.json",
+            .{ .read = true },
+        ) catch |err| {
+            std.debug.print("Failed to create file: {any}\n", .{err});
+            std.process.exit(1);
+        };
+        defer file.close();
+
+        _ = file.writeAll(json_string) catch |err| {
+            std.debug.print("Failed to write to file: {any}\n", .{err});
+            std.process.exit(1);
+        };
+
         var typechecker = TypeChecker.init(self.allocator, self.context) catch {
             std.debug.print("Failed to create type checker for source file '{s}'\n", .{source_file});
             std.process.exit(1);

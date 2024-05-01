@@ -198,13 +198,13 @@ pub const TypeChecker = struct {
                 try self.context.diagnostics.reportError(node.name.position, "Can't declare field with void type");
                 return Error.Stop;
             }
-
             var is_type_updated = false;
             if (origin_right_value_type != null) {
                 is_type_updated = origin_right_value_type.?.typeKind() == .GenericStruct;
                 if (is_type_updated) {
                     node.field_type = origin_right_value_type.?;
                     right_type = try self.resolveGenericType(right_type, null, null);
+                    log("2 right type {any}", .{right_type.StaticArray.element_type}, .{ .module = .TypeChecker });
                     should_update_node_type = false;
                     const is_first_defined = self.types_table.define(name, try self.allocReturn(ds.Any, ds.Any{ .Type = right_type }));
                     if (!is_first_defined) {

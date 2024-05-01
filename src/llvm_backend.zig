@@ -225,11 +225,11 @@ pub const LLVMBackend = struct {
     pub fn updateIntrinsics(self: *Self) !void {
         var param_types = [_]llvm_types.LLVMTypeRef{llvm_float64_type};
         const fn_type = llvm_core.LLVMFunctionType(llvm_float64_type, @ptrCast(&param_types), 1, 0);
-        const cos_fn = llvm_core.LLVMAddFunction(self.llvm_module, self.cStr("llvm.cos"), fn_type);
+        const cos_fn = llvm_core.LLVMAddFunction(self.llvm_module, self.cStr("llvm.cos.f64"), fn_type);
         try self.function_types_map.put("llvm.cos.f64", fn_type);
         const id = llvm_core.LLVMGetIntrinsicID(cos_fn);
 
-        try llvm_intrinsics_map.put("llvm.cos", id);
+        try llvm_intrinsics_map.put("llvm.cos.f64", id);
     }
 
     pub fn compile(self: *Self, module_name: []const u8, compilation_unit: *CompilationUnit) !llvm_types.LLVMModuleRef {
@@ -307,23 +307,18 @@ pub const LLVMBackend = struct {
         }
 
         var value: llvm_types.LLVMValueRef = undefined;
+
         if (node.value == null) {
             value = llvm_core.LLVMConstNull(try self.llvmTypeFromLangType(field_type));
         } else {
             value = try self.llvmNodeValue(try node.value.?.accept(self.visitor));
         }
 
-        debugV(value);
-
         const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
         const value_type = llvm_core.LLVMTypeOf(value);
 
-        debugT(llvm_type);
-        debugT(value_type);
-
         //  Very Questionable set of ifs
         const pointer_type = llvm_core.LLVMGetElementType(value_type); // Probably wrong
-        debugT(pointer_type);
 
         if (value_type == llvm_type or pointer_type == llvm_type) {
             var init_value = value;
@@ -337,8 +332,6 @@ pub const LLVMBackend = struct {
             _ = self.alloca_inst_table.define(var_name, try self.allocReturn(ds.Any, ds.Any{ .LLVMValue = alloc_inst }));
         } else if (llvm_core.LLVMIsAPHINode(value) != null or llvm_core.LLVMIsALoadInst(value) != null or llvm_core.LLVMIsAUndefValue(value) != null or llvm_core.LLVMIsAConstantInt(value) != null or llvm_core.LLVMIsAConstant(value) != null or llvm_core.LLVMIsACallInst(value) != null) {
             const alloc_inst = try self.createEntryBlockAlloca(current_function, var_name, llvm_type);
-            debugV(value);
-            debugV(alloc_inst);
             _ = llvm_core.LLVMBuildStore(builder, value, alloc_inst);
             _ = self.alloca_inst_table.define(var_name, try self.allocReturn(ds.Any, ds.Any{ .LLVMValue = alloc_inst }));
         } else if (llvm_core.LLVMIsAAllocaInst(value) != null) {
@@ -715,7 +708,8 @@ pub const LLVMBackend = struct {
         }
 
         const is_foreach_string = types.isTypesEquals(collection_exp_type, &types.Type.I8_PTR_TYPE);
-        const zero_value = llvm_core.LLVMConstInt(llvm_int64_type, 0, 1);
+        const v: i64 = -1;
+        const zero_value = llvm_core.LLVMConstInt(llvm_int64_type, @bitCast(v), 1);
         const step = llvm_core.LLVMConstInt(llvm_int64_type, 1, 1);
 
         var length: llvm_types.LLVMValueRef = undefined;
@@ -775,7 +769,7 @@ pub const LLVMBackend = struct {
         llvm_core.LLVMPositionBuilderAtEnd(builder, body_block);
 
         const index_alloca_type = llvm_core.LLVMGetAllocatedType(index_alloca);
-        const value_ptr = llvm_core.LLVMBuildLoad2(builder, index_alloca_type, index_alloca, self.cStr("value"));
+        const value_ptr = llvm_core.LLVMBuildLoad2(builder, index_alloca_type, index_alloca, self.cStr(""));
         const new_value = try self.createLLVMNumbersBinary(.Plus, value_ptr, step);
         _ = llvm_core.LLVMBuildStore(builder, new_value, index_alloca);
 
@@ -1201,7 +1195,7 @@ pub const LLVMBackend = struct {
                         const array = try self.llvmNodeValue(try node_value.accept(self.visitor));
                         const allocated_type = llvm_core.LLVMTypeOf(array);
                         var types_ = [2]llvm_types.LLVMValueRef{ zero_int32_value, index };
-                        const ptr = llvm_core.LLVMBuildGEP2(builder, allocated_type, array, &types_, 2, self.cStr(""));
+                        const ptr = llvm_core.LLVMBuildGEP2(builder, allocated_type, llvm_core.LLVMGetOperand(array, 0), &types_, 2, self.cStr(""));
                         _ = llvm_core.LLVMBuildStore(builder, right_value, ptr);
                         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = right_value });
                     },
@@ -1229,14 +1223,16 @@ pub const LLVMBackend = struct {
                 _ = llvm_core.LLVMBuildStore(builder, rvalue, member_ptr);
                 return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = rvalue });
             },
-            .prefix_unary_expression => |unary_expression| {
+            .prefix_unary_expression => |*unary_expression| {
                 const opt = unary_expression.operator_token.kind;
                 if (opt == .Star) {
                     const rvalue = try self.llvmResolveValue(try node.right.accept(self.visitor));
-                    const unary_right_type = unary_expression.right.getTypeNode().?;
-                    const pointer_type = unary_right_type.Pointer;
-                    const pointer_base_type = try self.llvmTypeFromLangType(pointer_type.base_type);
+                    // const unary_right_type = unary_expression.right.getTypeNode().?;
+                    // const pointer_type = unary_right_type.Pointer;
+                    // const pointer_base_type = try self.llvmTypeFromLangType(pointer_type.base_type);
+                    // Should work fine this way?
                     const pointer = try self.llvmNodeValue(try unary_expression.right.accept(self.visitor));
+                    const pointer_base_type = llvm_core.LLVMGetElementType(llvm_core.LLVMTypeOf(pointer));
                     const load = llvm_core.LLVMBuildLoad2(builder, pointer_base_type, pointer, @ptrCast(""));
                     _ = llvm_core.LLVMBuildStore(builder, rvalue, load);
                     return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = rvalue });
@@ -1604,7 +1600,6 @@ pub const LLVMBackend = struct {
                     const allocated = llvm_core.LLVMGetAllocatedType(value);
                     const loaded = llvm_core.LLVMBuildLoad2(builder, allocated, value, @ptrCast(""));
                     const function_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
-                    debugT(function_type);
 
                     if (llvm_core.LLVMGetTypeKind(function_type) == .LLVMFunctionTypeKind) {
                         const arguments = node.arguments;
@@ -1617,8 +1612,6 @@ pub const LLVMBackend = struct {
 
                         for (0..arguments_size) |i| {
                             const value_ = try self.llvmNodeValue(try arguments.items[i].accept(self.visitor));
-                            debugV(value_);
-                            debugV(loaded);
                             const value_type = llvm_core.LLVMTypeOf(value_);
                             const param_type = params.items[i];
                             if (value_type == param_type) {
@@ -1629,7 +1622,6 @@ pub const LLVMBackend = struct {
                             }
                         }
                         const call_ = llvm_core.LLVMBuildCall2(builder, function_type, loaded, @ptrCast(arguments_values.items), @intCast(arguments_size), @ptrCast(""));
-                        debugV(call_);
                         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = call_ });
                     }
                     return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = loaded });
@@ -1661,7 +1653,6 @@ pub const LLVMBackend = struct {
             for (0..arguments_size) |i| {
                 const argument = arguments.items[i];
                 const value = try self.llvmNodeValue(try argument.accept(self.visitor));
-                debugV(value);
 
                 if (i >= parameter_size) {
                     if (argument.getAstNodeType() == .Literal) {
@@ -1808,7 +1799,7 @@ pub const LLVMBackend = struct {
             const ret = llvm_core.LLVMConstNamedStruct(struct_type, @ptrCast(constants_arguments.items), @intCast(constants_arguments.items.len));
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
         }
-        const alloc_inst = llvm_core.LLVMBuildAlloca(builder, struct_type, @ptrCast("alloca"));
+        const alloc_inst = llvm_core.LLVMBuildAlloca(builder, struct_type, @ptrCast(""));
         var argument_idx: usize = 0;
         for (node.arguments.items) |argument| {
             const argument_value = try self.llvmResolveValue(try argument.accept(self.visitor));
@@ -1831,7 +1822,6 @@ pub const LLVMBackend = struct {
         const node_llvm_type = try self.llvmTypeFromLangType(function_ptr_type.base_type);
         const function_type = node_llvm_type;
         const function = llvm_core.LLVMAddFunction(self.llvm_module, self.cStr(lambda_name), function_type);
-        debugT(function_type);
         llvm_core.LLVMSetLinkage(function, .LLVMInternalLinkage);
         // try self.function_types_map.put(function_name, function_type);
 
@@ -1983,7 +1973,6 @@ pub const LLVMBackend = struct {
         if (llvm_core.LLVMGetTypeKind(value_type) == .LLVMArrayTypeKind and llvm_core.LLVMGetTypeKind(target_type) == .LLVMPointerTypeKind) {
             if (llvm_core.LLVMIsALoadInst(value) != null) {
                 const load_inst = llvm_core.LLVMGetOperand(value, 0);
-                debugV(load_inst);
                 var values = [2]llvm_types.LLVMValueRef{ zero_int32_value, zero_int32_value };
                 const ret = llvm_core.LLVMBuildGEP2(builder, llvm_core.LLVMTypeOf(value), load_inst, &values, 2, "");
                 return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
@@ -2033,6 +2022,7 @@ pub const LLVMBackend = struct {
         log("Visiting index expression", .{}, .{ .module = .Codegen });
         const index = try self.llvmResolveValue(try node.index.accept(self.visitor));
         const ret = try self.accessArrayElement(node.value, index);
+
         log("Index expression resolved", .{}, .{ .module = .Codegen });
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
@@ -2047,8 +2037,6 @@ pub const LLVMBackend = struct {
     pub fn visitLiteralExpression(self: *Self, node: *ast.LiteralExpression) !*ds.Any {
         log("Visiting literal expression", .{}, .{ .module = .Codegen });
         const name = node.name.literal;
-        self.alloca_inst_table.printKeys();
-        log("Literal name: {s}", .{name}, .{ .module = .Codegen });
         const alloca_inst = self.alloca_inst_table.lookup(name);
         if (alloca_inst != null) {
             return alloca_inst.?;
@@ -2071,7 +2059,7 @@ pub const LLVMBackend = struct {
         const size = node_values.items.len;
         if (node.isConstant()) {
             const llvm_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
-            const array_type = llvm_type;
+            const array_type = llvm_core.LLVMGetElementType(llvm_type);
             var values = std.ArrayList(llvm_types.LLVMValueRef).init(self.allocator);
             for (node_values.items) |value| {
                 const llvm_value = try self.llvmResolveValue(try value.accept(self.visitor));
@@ -2080,7 +2068,7 @@ pub const LLVMBackend = struct {
             const ret = llvm_core.LLVMConstArray(array_type, @ptrCast(values.items), @intCast(values.items.len));
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
         }
-
+        log("type : {any}", .{node.getTypeNode().?.StaticArray.element_type}, .{ .module = .Codegen });
         const array_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const array_element_type = llvm_core.LLVMGetElementType(array_type);
 
@@ -2089,7 +2077,7 @@ pub const LLVMBackend = struct {
             try values.append(try self.llvmResolveValue(try value.accept(self.visitor)));
         }
 
-        const alloca = llvm_core.LLVMBuildAlloca(builder, array_type, @ptrCast("alloca"));
+        const alloca = llvm_core.LLVMBuildAlloca(builder, array_type, @ptrCast(""));
         for (0..size) |i| {
             const index = llvm_core.LLVMConstInt(llvm_int32_type, @intCast(i), 1);
             const allocated_type = llvm_core.LLVMGetAllocatedType(alloca);
@@ -2218,7 +2206,6 @@ pub const LLVMBackend = struct {
         log("Visiting null expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.null_base_type);
         const ret = llvm_core.LLVMConstNull(llvm_type);
-        debugV(ret);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
@@ -2778,7 +2765,7 @@ pub const LLVMBackend = struct {
         if (llvm_core.LLVMGetTypeKind(callee_llvm_type) == .LLVMStructTypeKind) {
             if (llvm_core.LLVMIsAPHINode(callee_value) != null) {
                 const struct_type = llvm_core.LLVMTypeOf(callee_value);
-                const alloca = llvm_core.LLVMBuildAlloca(builder, struct_type, self.cStr("alloca"));
+                const alloca = llvm_core.LLVMBuildAlloca(builder, struct_type, self.cStr(""));
                 _ = llvm_core.LLVMBuildStore(builder, callee_value, alloca);
                 var values = [2]llvm_types.LLVMValueRef{ zero_int32_value, index };
                 return llvm_core.LLVMBuildGEP2(builder, callee_llvm_type, alloca, &values, 2, "");
@@ -2889,7 +2876,8 @@ pub const LLVMBackend = struct {
                 const array = try self.llvmNodeValue(try node_value.accept(self.visitor));
                 if (llvm_core.LLVMIsALoadInst(array) != null) {
                     var values_ = [2]llvm_types.LLVMValueRef{ zero_int32_value, index };
-                    const ptr = llvm_core.LLVMBuildGEP2(builder, llvm_core.LLVMTypeOf(array), array, &values_, 2, "");
+                    const load_inst = llvm_core.LLVMGetOperand(array, 0);
+                    const ptr = llvm_core.LLVMBuildGEP2(builder, llvm_core.LLVMTypeOf(array), load_inst, &values_, 2, "");
                     return dereferencesLLVMPointer(ptr, .Load);
                 }
 
@@ -2902,7 +2890,7 @@ pub const LLVMBackend = struct {
                 const array = try self.llvmNodeValue(try node_value.accept(self.visitor));
                 if (llvm_core.LLVMIsALoadInst(array) != null) {
                     var values_ = [2]llvm_types.LLVMValueRef{ zero_int32_value, index };
-                    const ptr = llvm_core.LLVMBuildGEP2(builder, llvm_core.LLVMGetElementType(llvm_core.LLVMTypeOf(array)), array, &values_, 2, "");
+                    const ptr = llvm_core.LLVMBuildGEP2(builder, llvm_core.LLVMTypeOf(array), llvm_core.LLVMGetOperand(array, 0), &values_, 2, "");
                     return dereferencesLLVMPointer(ptr, .Load);
                 }
 

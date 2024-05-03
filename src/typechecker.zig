@@ -202,9 +202,9 @@ pub const TypeChecker = struct {
             if (origin_right_value_type != null) {
                 is_type_updated = origin_right_value_type.?.typeKind() == .GenericStruct;
                 if (is_type_updated) {
-                    node.field_type = origin_right_value_type.?;
+                    // node.field_type = origin_right_value_type.?;
                     right_type = try self.resolveGenericType(right_type, null, null);
-                    log("2 right type {any}", .{right_type.StaticArray.element_type}, .{ .module = .TypeChecker });
+                    node.field_type = right_type;
                     should_update_node_type = false;
                     const is_first_defined = self.types_table.define(name, try self.allocReturn(ds.Any, ds.Any{ .Type = right_type }));
                     if (!is_first_defined) {
@@ -256,8 +256,7 @@ pub const TypeChecker = struct {
             }
 
             if (is_left_ptr_type and is_right_null_type) {
-                var null_expr = node.value.?.null_expression;
-                null_expr.null_base_type = left_type;
+                node.value.?.null_expression.null_base_type = left_type;
                 is_type_updated = true;
             }
 
@@ -644,13 +643,13 @@ pub const TypeChecker = struct {
             return self.allocReturn(ds.Any, ds.Any{ .U32 = 0 });
         }
 
+        // This is wrong, if the return type is generic, we cannot resolve it here
         const return_type = self.nodeType(try node.value.?.accept(self.visitor));
         const function_return_type = try self.resolveGenericType(self.return_types_stack.getLast(), null, null);
 
         if (!types.isTypesEquals(function_return_type, return_type)) {
             if (types.isPointerType(function_return_type) and types.isNullType(return_type)) {
-                var null_expr = node.value.?.null_expression;
-                null_expr.null_base_type = function_return_type;
+                node.value.?.null_expression.null_base_type = function_return_type;
                 return self.allocReturn(ds.Any, ds.Any{ .U32 = 0 });
             }
 
@@ -1601,7 +1600,6 @@ pub const TypeChecker = struct {
         if (values_size == 0) {
             return self.allocReturn(ds.Any, ds.Any{ .Type = node.getTypeNode().? });
         }
-
         var last_element_type = self.nodeType(try values.items[0].accept(self.visitor));
         for (1..values_size) |i| {
             var value = values.items[i];
@@ -1693,7 +1691,6 @@ pub const TypeChecker = struct {
                 try self.generic_types.put(generic.name, resolved_type);
                 return resolved_type;
             }
-
             return self.generic_types.get(generic.name).?;
         }
 
@@ -1707,19 +1704,29 @@ pub const TypeChecker = struct {
         if (type_.typeKind() == .StaticArray) {
             const array = type_.StaticArray;
             const element_type = try self.resolveGenericType(array.element_type.?, generic_names, generic_parameters);
-            return try self.allocReturn(types.Type, types.Type{ .StaticArray = types.StaticArrayType.init(element_type, array.size) });
+            return try self.allocReturn(types.Type, types.Type{ .StaticArray = types.StaticArrayType.init(element_type, array.size, array.element_type.?) });
         }
 
         if (type_.typeKind() == .Function) {
-            var function = type_.Function;
-            function.return_type = try self.resolveGenericType(function.return_type, generic_names, generic_parameters);
-            const parameters = function.parameters;
-            const parameters_count = parameters.items.len;
-            for (0..parameters_count) |i| {
-                function.parameters.items[i] = try self.resolveGenericType(function.parameters.items[i], generic_names, generic_parameters);
+            // var function = type_.Function;
+            // function.return_type = try self.resolveGenericType(function.return_type, generic_names, generic_parameters);
+            // const parameters = function.parameters;
+            // const parameters_count = parameters.items.len;
+            // for (0..parameters_count) |i| {
+            //     function.parameters.items[i] = try self.resolveGenericType(function.parameters.items[i], generic_names, generic_parameters);
+            // }
+
+            const function = type_.Function;
+            const return_type = try self.resolveGenericType(function.return_type, generic_names, generic_parameters);
+            var parameters = std.ArrayList(*types.Type).init(self.allocator);
+            for (function.parameters.items) |parameter| {
+                const resolved_parameter = try self.resolveGenericType(parameter, generic_names, generic_parameters);
+                try parameters.append(resolved_parameter);
             }
 
-            return self.allocReturn(types.Type, types.Type{ .Function = function });
+            const new_function = types.FunctionType.init(function.name, parameters, return_type, function.has_varargs, function.varargs_type, function.is_intrinsic, function.is_generic, function.generic_names);
+
+            return self.allocReturn(types.Type, types.Type{ .Function = new_function });
         }
 
         if (type_.typeKind() == .GenericStruct) {
@@ -1735,9 +1742,11 @@ pub const TypeChecker = struct {
                         index = ds.indexOf(generic_names.?.items, generic_type.name);
                     }
                     if (index) |j| {
-                        generic_struct.parameters.items[i] = generic_parameters.?.items[j];
+                        // generic_struct.parameters.items[i] = generic_parameters.?.items[j];
+                        generic_struct_param.items[i] = generic_parameters.?.items[j];
                     } else {
-                        generic_struct.parameters.items[i] = self.generic_types.get(generic_type.name).?;
+                        // generic_struct.parameters.items[i] = self.generic_types.get(generic_type.name).?;
+                        generic_struct_param.items[i] = self.generic_types.get(generic_type.name).?;
                     }
                 }
                 i += 1;
@@ -1754,19 +1763,23 @@ pub const TypeChecker = struct {
             }
             var types1 = std.ArrayList(*types.Type).init(self.allocator);
             for (structure.field_types.items) |type_1| {
-                try types1.append(try self.resolveGenericType(type_1, structure.generic_parameters, generic_struct.parameters));
+                // try types1.append(try self.resolveGenericType(type_1, structure.generic_parameters, generic_struct.parameters));
+                try types1.append(try self.resolveGenericType(type_1, structure.generic_parameters, generic_struct_param));
             }
 
-            const new_struct = try self.allocReturn(types.Type, types.Type{ .Struct = types.StructType.init(
-                mangled_name,
-                fields_names,
-                types1,
-                structure.generic_parameters,
-                generic_struct.parameters,
-                true,
-                true,
-                false,
-            ) });
+            const new_struct = try self.allocReturn(types.Type, types.Type{
+                .Struct = types.StructType.init(
+                    mangled_name,
+                    fields_names,
+                    types1,
+                    structure.generic_parameters,
+                    // generic_struct.parameters,
+                    generic_struct_param,
+                    true,
+                    true,
+                    false,
+                ),
+            });
             _ = self.types_table.define(mangled_name, try self.allocReturn(ds.Any, ds.Any{ .Type = new_struct }));
             return new_struct;
         }
@@ -1947,6 +1960,8 @@ pub const TypeChecker = struct {
         const arguments_size = arguments.items.len;
         const all_arguments_size: usize = arguments_size + implicit_parameters_count;
         const parameters_size = parameters.items.len;
+        log("Arguments: {any}", .{arguments.items}, .{ .module = .TypeChecker });
+        log("Parameters: {any}", .{parameters.items}, .{ .module = .TypeChecker });
 
         if (!has_varargs and all_arguments_size != parameters_size) {
             try self.context.diagnostics.reportError(location, try std.fmt.allocPrint(self.allocator, "Invalid number of arguments, expect {d} but got {d}", .{ parameters_size, all_arguments_size }));
@@ -1970,9 +1985,13 @@ pub const TypeChecker = struct {
             }
         }
 
+        // Save the generic parameters to reset them after
+        // var generic_parameters = std.AutoArrayHashMap(usize, *types.Type).init(self.allocator);
         for (0..parameters.items.len) |i| {
             if (parameters.items[i].typeKind() == .GenericStruct) {
+                // I can resolve it here but i have to reset the generic types after, but where?
                 parameters.items[i] = try self.resolveGenericType(parameters.items[i], null, null);
+                // try generic_parameters.put(i, parameters.items[i]);
             }
         }
 
@@ -1980,20 +1999,18 @@ pub const TypeChecker = struct {
 
         for (0..count) |i| {
             const p = i + implicit_parameters_count;
-
             if (!types.isTypesEquals(parameters.items[p], arguments_types.items[i])) {
                 if (types.isPointerType(parameters.items[p]) and types.isNullType(arguments_types.items[i])) {
-                    var null_expr = arguments.items[i].null_expression;
-                    null_expr.null_base_type = parameters.items[p];
+                    arguments.items[i].null_expression.null_base_type = parameters.items[p];
                     continue;
                 }
 
                 if (types.isArrayType(parameters.items[p]) and arguments.items[i].getAstNodeType() == .Array) {
                     const array_expr = arguments.items[i].array_expression;
-                    var array_type = array_expr.value_type.?.StaticArray;
+                    const array_type = array_expr.value_type.?.StaticArray;
                     const param_type = parameters.items[p].StaticArray;
                     if (array_type.size == 0) {
-                        array_type.element_type = param_type.element_type;
+                        arguments.items[i].array_expression.value_type.?.StaticArray.element_type = param_type.element_type;
                     }
                     continue;
                 }
@@ -2001,6 +2018,12 @@ pub const TypeChecker = struct {
                 return error.Stop;
             }
         }
+
+        // Reset the generic parameters to the original values, here??
+        // for (generic_parameters.keys()) |key| {
+        //     parameters.items[key] = generic_parameters.get(key).?;
+        // }
+        // generic_parameters.deinit();
 
         if (varargs_type == null) {
             return;

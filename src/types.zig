@@ -173,11 +173,13 @@ pub const PointerType = struct {
 pub const StaticArrayType = struct {
     element_type: ?*Type,
     size: u32,
+    resolved_from: ?*Type,
 
-    pub fn init(element_type: ?*Type, size: u32) StaticArrayType {
+    pub fn init(element_type: ?*Type, size: u32, resolved_from: ?*Type) StaticArrayType {
         return StaticArrayType{
             .element_type = element_type,
             .size = size,
+            .resolved_from = resolved_from,
         };
     }
 };

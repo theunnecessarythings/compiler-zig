@@ -1,6 +1,7 @@
 @extern fun printf(format *char, varargs Any) int64;
 
 fun sum(x int64, y int64) int64 = x + y;
+fun sum32(x int32, y int32) int32 = x + y;
 
 struct FunctionWrapper <T> {
    function fun (T, T) T;
@@ -8,6 +9,7 @@ struct FunctionWrapper <T> {
 
 fun main() int64 {
     var wrapper = FunctionWrapper<int64>(&sum);
+    //var wrapper2 = FunctionWrapper<int32>(&sum32);
     printf("%d\n", wrapper.function(10, 20));
     return 0;
 }

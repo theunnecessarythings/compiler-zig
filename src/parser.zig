@@ -1390,7 +1390,7 @@ pub const Parser = struct {
             if (tokenizer.assignmentBitwiseOperators(assignments_token_kind) != error.NotFound) {
                 const op_kind = try tokenizer.assignmentBitwiseOperators(assignments_token_kind);
                 assignments_token.kind = op_kind;
-                const bitwise = try self.allocReturn(ast.Expression, ast.Expression{ .binary_expression = ast.BinaryExpression.init(assignments_token, expression, rhs) });
+                const bitwise = try self.allocReturn(ast.Expression, ast.Expression{ .bitwise_expression = ast.BitwiseExpression.init(assignments_token, expression, rhs) });
                 return self.allocReturn(ast.Expression, ast.Expression{ .assign_expression = ast.AssignExpression.init(assignments_token, expression, bitwise) });
             }
 
@@ -2600,7 +2600,7 @@ pub const Parser = struct {
             return Error.Stop;
         }
         const number_value = try std.fmt.parseInt(u32, size.number_expression.value.literal, 10);
-        return self.allocReturn(types.Type, Type{ .StaticArray = types.StaticArrayType.init(element_type, number_value) });
+        return self.allocReturn(types.Type, Type{ .StaticArray = types.StaticArrayType.init(element_type, number_value, null) });
     }
 
     fn parseTypeWithPostfix(self: *Self) Error!*Type {

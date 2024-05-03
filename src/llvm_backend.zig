@@ -22,7 +22,7 @@ pub const LLVMBackend = struct {
     llvm_functions: std.StringArrayHashMap(llvm_types.LLVMValueRef),
     constants_string_pool: std.StringArrayHashMap(llvm_types.LLVMValueRef),
     structures_types_map: std.StringArrayHashMap(llvm_types.LLVMTypeRef),
-    function_declarations: std.StringArrayHashMap(*ast.FunctionDeclaration),
+    function_declarations: std.StringArrayHashMap(*const ast.FunctionDeclaration),
     generic_types: std.StringArrayHashMap(*types.Type),
     defer_calls_stack: std.ArrayList(ds.ScopedList(*DeferCall)),
     alloca_inst_table: ds.ScopedMap(*ds.Any),
@@ -88,7 +88,7 @@ pub const LLVMBackend = struct {
             .llvm_functions = std.StringArrayHashMap(llvm_types.LLVMValueRef).init(allocator),
             .constants_string_pool = std.StringArrayHashMap(llvm_types.LLVMValueRef).init(allocator),
             .structures_types_map = std.StringArrayHashMap(llvm_types.LLVMTypeRef).init(allocator),
-            .function_declarations = std.StringArrayHashMap(*ast.FunctionDeclaration).init(allocator),
+            .function_declarations = std.StringArrayHashMap(*const ast.FunctionDeclaration).init(allocator),
             .generic_types = std.StringArrayHashMap(*types.Type).init(allocator),
             .defer_calls_stack = std.ArrayList(ds.ScopedList(*DeferCall)).init(allocator),
             .alloca_inst_table = alloca_inst_table,
@@ -110,57 +110,57 @@ pub const LLVMBackend = struct {
 
     fn getVisitor(self: *LLVMBackend) !*ast.TreeVisitor {
         const ptr: *anyopaque = @ptrCast(self);
-        const visit_block_statement: *const fn (*anyopaque, *ast.BlockStatement) Error!*ds.Any = @ptrCast(&visitBlockStatement);
-        const visit_field_declaration: *const fn (*anyopaque, *ast.FieldDeclaration) Error!*ds.Any = @ptrCast(&visitFieldDeclaration);
-        const visit_const_declaration: *const fn (*anyopaque, *ast.ConstDeclaration) Error!*ds.Any = @ptrCast(&visitConstDeclaration);
-        const visit_function_prototype: *const fn (*anyopaque, *ast.FunctionPrototype) Error!*ds.Any = @ptrCast(&visitFunctionPrototype);
-        const visit_intrinsic_prototype: *const fn (*anyopaque, *ast.IntrinsicPrototype) Error!*ds.Any = @ptrCast(&visitIntrinsicPrototype);
-        const visit_function_declaration: *const fn (*anyopaque, *ast.FunctionDeclaration) Error!*ds.Any = @ptrCast(&visitFunctionDeclaration);
-        const visit_operator_function_declaration: *const fn (*anyopaque, *ast.OperatorFunctionDeclaration) Error!*ds.Any = @ptrCast(&visitOperatorFunctionDeclaration);
-        const visit_struct_declaration: *const fn (*anyopaque, *ast.StructDeclaration) Error!*ds.Any = @ptrCast(&visitStructDeclaration);
-        const visit_enum_declaration: *const fn (*anyopaque, *ast.EnumDeclaration) Error!*ds.Any = @ptrCast(&visitEnumDeclaration);
-        const visit_if_statement: *const fn (*anyopaque, *ast.IfStatement) Error!*ds.Any = @ptrCast(&visitIfStatement);
-        const visit_for_range_statement: *const fn (*anyopaque, *ast.ForRangeStatement) Error!*ds.Any = @ptrCast(&visitForRangeStatement);
-        const visit_for_each_statement: *const fn (*anyopaque, *ast.ForEachStatement) Error!*ds.Any = @ptrCast(&visitForEachStatement);
-        const visit_forever_statement: *const fn (*anyopaque, *ast.ForEverStatement) Error!*ds.Any = @ptrCast(&visitForeverStatement);
-        const visit_while_statement: *const fn (*anyopaque, *ast.WhileStatement) Error!*ds.Any = @ptrCast(&visitWhileStatement);
-        const visit_switch_statement: *const fn (*anyopaque, *ast.SwitchStatement) Error!*ds.Any = @ptrCast(&visitSwitchStatement);
-        const visit_return_statement: *const fn (*anyopaque, *ast.ReturnStatement) Error!*ds.Any = @ptrCast(&visitReturnStatement);
-        const visit_expression_statement: *const fn (*anyopaque, *ast.ExpressionStatement) Error!*ds.Any = @ptrCast(&visitExpressionStatement);
-        const visit_if_expression: *const fn (*anyopaque, *ast.IfExpression) Error!*ds.Any = @ptrCast(&visitIfExpression);
-        const visit_switch_expression: *const fn (*anyopaque, *ast.SwitchExpression) Error!*ds.Any = @ptrCast(&visitSwitchExpression);
-        const visit_tuple_expression: *const fn (*anyopaque, *ast.TupleExpression) Error!*ds.Any = @ptrCast(&visitTupleExpression);
-        const visit_assign_expression: *const fn (*anyopaque, *ast.AssignExpression) Error!*ds.Any = @ptrCast(&visitAssignExpression);
-        const visit_binary_expression: *const fn (*anyopaque, *ast.BinaryExpression) Error!*ds.Any = @ptrCast(&visitBinaryExpression);
-        const visit_call_expression: *const fn (*anyopaque, *ast.CallExpression) Error!*ds.Any = @ptrCast(&visitCallExpression);
-        const visit_index_expression: *const fn (*anyopaque, *ast.IndexExpression) Error!*ds.Any = @ptrCast(&visitIndexExpression);
-        const visit_enum_access_expression: *const fn (*anyopaque, *ast.EnumAccessExpression) Error!*ds.Any = @ptrCast(&visitEnumAccessExpression);
-        const visit_number_expression: *const fn (*anyopaque, *ast.NumberExpression) Error!*ds.Any = @ptrCast(&visitNumberExpression);
-        const visit_string_expression: *const fn (*anyopaque, *ast.StringExpression) Error!*ds.Any = @ptrCast(&visitStringExpression);
-        const visit_null_expression: *const fn (*anyopaque, *ast.NullExpression) Error!*ds.Any = @ptrCast(&visitNullExpression);
-        const visit_array_expression: *const fn (*anyopaque, *ast.ArrayExpression) Error!*ds.Any = @ptrCast(&visitArrayExpression);
-        const visit_lambda_expression: *const fn (*anyopaque, *ast.LambdaExpression) Error!*ds.Any = @ptrCast(&visitLambdaExpression);
-        const visit_cast_expression: *const fn (*anyopaque, *ast.CastExpression) Error!*ds.Any = @ptrCast(&visitCastExpression);
-        const visit_comparison_expression: *const fn (*anyopaque, *ast.ComparisonExpression) Error!*ds.Any = @ptrCast(&visitComparisonExpression);
-        const visit_logical_expression: *const fn (*anyopaque, *ast.LogicalExpression) Error!*ds.Any = @ptrCast(&visitLogicalExpression);
-        const visit_prefix_unary_expression: *const fn (*anyopaque, *ast.PrefixUnaryExpression) Error!*ds.Any = @ptrCast(&visitPrefixUnaryExpression);
-        const visit_postfix_unary_expression: *const fn (*anyopaque, *ast.PostfixUnaryExpression) Error!*ds.Any = @ptrCast(&visitPostfixUnaryExpression);
-        const visit_dot_expression: *const fn (*anyopaque, *ast.DotExpression) Error!*ds.Any = @ptrCast(&visitDotExpression);
-        const visit_type_size_expression: *const fn (*anyopaque, *ast.TypeSizeExpression) Error!*ds.Any = @ptrCast(&visitTypeSizeExpression);
-        const visit_type_align_expression: *const fn (*anyopaque, *ast.TypeAlignExpression) Error!*ds.Any = @ptrCast(&visitTypeAlignExpression);
-        const visit_init_expression: *const fn (*anyopaque, *ast.InitExpression) Error!*ds.Any = @ptrCast(&visitInitializeExpression);
-        const visit_value_size_expression: *const fn (*anyopaque, *ast.ValueSizeExpression) Error!*ds.Any = @ptrCast(&visitValueSizeExpression);
-        const visit_vector_expression: *const fn (*anyopaque, *ast.VectorExpression) Error!*ds.Any = @ptrCast(&visitVectorExpression);
-        const visit_literal_expression: *const fn (*anyopaque, *ast.LiteralExpression) Error!*ds.Any = @ptrCast(&visitLiteralExpression);
-        const visit_character_expression: *const fn (*anyopaque, *ast.CharacterExpression) Error!*ds.Any = @ptrCast(&visitCharacterExpression);
-        const visit_bool_expression: *const fn (*anyopaque, *ast.BoolExpression) Error!*ds.Any = @ptrCast(&visitBooleanExpression);
-        const visit_bitwise_expression: *const fn (*anyopaque, *ast.BitwiseExpression) Error!*ds.Any = @ptrCast(&visitBitwiseExpression);
-        const visit_undefined_expression: *const fn (*anyopaque, *ast.UndefinedExpression) Error!*ds.Any = @ptrCast(&visitUndefinedExpression);
-        const visit_infinity_expression: *const fn (*anyopaque, *ast.InfinityExpression) Error!*ds.Any = @ptrCast(&visitInfinityExpression);
-        const visit_destructuring_declaration: *const fn (*anyopaque, *ast.DestructuringDeclaration) Error!*ds.Any = @ptrCast(&visitDestructuringDeclaration);
-        const visit_defer_statement: *const fn (*anyopaque, *ast.DeferStatement) Error!*ds.Any = @ptrCast(&visitDeferStatement);
-        const visit_break_statement: *const fn (*anyopaque, *ast.BreakStatement) Error!*ds.Any = @ptrCast(&visitBreakStatement);
-        const visit_continue_statement: *const fn (*anyopaque, *ast.ContinueStatement) Error!*ds.Any = @ptrCast(&visitContinueStatement);
+        const visit_block_statement: *const fn (*anyopaque, *const ast.BlockStatement) Error!*ds.Any = @ptrCast(&visitBlockStatement);
+        const visit_field_declaration: *const fn (*anyopaque, *const ast.FieldDeclaration) Error!*ds.Any = @ptrCast(&visitFieldDeclaration);
+        const visit_const_declaration: *const fn (*anyopaque, *const ast.ConstDeclaration) Error!*ds.Any = @ptrCast(&visitConstDeclaration);
+        const visit_function_prototype: *const fn (*anyopaque, *const ast.FunctionPrototype) Error!*ds.Any = @ptrCast(&visitFunctionPrototype);
+        const visit_intrinsic_prototype: *const fn (*anyopaque, *const ast.IntrinsicPrototype) Error!*ds.Any = @ptrCast(&visitIntrinsicPrototype);
+        const visit_function_declaration: *const fn (*anyopaque, *const ast.FunctionDeclaration) Error!*ds.Any = @ptrCast(&visitFunctionDeclaration);
+        const visit_operator_function_declaration: *const fn (*anyopaque, *const ast.OperatorFunctionDeclaration) Error!*ds.Any = @ptrCast(&visitOperatorFunctionDeclaration);
+        const visit_struct_declaration: *const fn (*anyopaque, *const ast.StructDeclaration) Error!*ds.Any = @ptrCast(&visitStructDeclaration);
+        const visit_enum_declaration: *const fn (*anyopaque, *const ast.EnumDeclaration) Error!*ds.Any = @ptrCast(&visitEnumDeclaration);
+        const visit_if_statement: *const fn (*anyopaque, *const ast.IfStatement) Error!*ds.Any = @ptrCast(&visitIfStatement);
+        const visit_for_range_statement: *const fn (*anyopaque, *const ast.ForRangeStatement) Error!*ds.Any = @ptrCast(&visitForRangeStatement);
+        const visit_for_each_statement: *const fn (*anyopaque, *const ast.ForEachStatement) Error!*ds.Any = @ptrCast(&visitForEachStatement);
+        const visit_forever_statement: *const fn (*anyopaque, *const ast.ForEverStatement) Error!*ds.Any = @ptrCast(&visitForeverStatement);
+        const visit_while_statement: *const fn (*anyopaque, *const ast.WhileStatement) Error!*ds.Any = @ptrCast(&visitWhileStatement);
+        const visit_switch_statement: *const fn (*anyopaque, *const ast.SwitchStatement) Error!*ds.Any = @ptrCast(&visitSwitchStatement);
+        const visit_return_statement: *const fn (*anyopaque, *const ast.ReturnStatement) Error!*ds.Any = @ptrCast(&visitReturnStatement);
+        const visit_expression_statement: *const fn (*anyopaque, *const ast.ExpressionStatement) Error!*ds.Any = @ptrCast(&visitExpressionStatement);
+        const visit_if_expression: *const fn (*anyopaque, *const ast.IfExpression) Error!*ds.Any = @ptrCast(&visitIfExpression);
+        const visit_switch_expression: *const fn (*anyopaque, *const ast.SwitchExpression) Error!*ds.Any = @ptrCast(&visitSwitchExpression);
+        const visit_tuple_expression: *const fn (*anyopaque, *const ast.TupleExpression) Error!*ds.Any = @ptrCast(&visitTupleExpression);
+        const visit_assign_expression: *const fn (*anyopaque, *const ast.AssignExpression) Error!*ds.Any = @ptrCast(&visitAssignExpression);
+        const visit_binary_expression: *const fn (*anyopaque, *const ast.BinaryExpression) Error!*ds.Any = @ptrCast(&visitBinaryExpression);
+        const visit_call_expression: *const fn (*anyopaque, *const ast.CallExpression) Error!*ds.Any = @ptrCast(&visitCallExpression);
+        const visit_index_expression: *const fn (*anyopaque, *const ast.IndexExpression) Error!*ds.Any = @ptrCast(&visitIndexExpression);
+        const visit_enum_access_expression: *const fn (*anyopaque, *const ast.EnumAccessExpression) Error!*ds.Any = @ptrCast(&visitEnumAccessExpression);
+        const visit_number_expression: *const fn (*anyopaque, *const ast.NumberExpression) Error!*ds.Any = @ptrCast(&visitNumberExpression);
+        const visit_string_expression: *const fn (*anyopaque, *const ast.StringExpression) Error!*ds.Any = @ptrCast(&visitStringExpression);
+        const visit_null_expression: *const fn (*anyopaque, *const ast.NullExpression) Error!*ds.Any = @ptrCast(&visitNullExpression);
+        const visit_array_expression: *const fn (*anyopaque, *const ast.ArrayExpression) Error!*ds.Any = @ptrCast(&visitArrayExpression);
+        const visit_lambda_expression: *const fn (*anyopaque, *const ast.LambdaExpression) Error!*ds.Any = @ptrCast(&visitLambdaExpression);
+        const visit_cast_expression: *const fn (*anyopaque, *const ast.CastExpression) Error!*ds.Any = @ptrCast(&visitCastExpression);
+        const visit_comparison_expression: *const fn (*anyopaque, *const ast.ComparisonExpression) Error!*ds.Any = @ptrCast(&visitComparisonExpression);
+        const visit_logical_expression: *const fn (*anyopaque, *const ast.LogicalExpression) Error!*ds.Any = @ptrCast(&visitLogicalExpression);
+        const visit_prefix_unary_expression: *const fn (*anyopaque, *const ast.PrefixUnaryExpression) Error!*ds.Any = @ptrCast(&visitPrefixUnaryExpression);
+        const visit_postfix_unary_expression: *const fn (*anyopaque, *const ast.PostfixUnaryExpression) Error!*ds.Any = @ptrCast(&visitPostfixUnaryExpression);
+        const visit_dot_expression: *const fn (*anyopaque, *const ast.DotExpression) Error!*ds.Any = @ptrCast(&visitDotExpression);
+        const visit_type_size_expression: *const fn (*anyopaque, *const ast.TypeSizeExpression) Error!*ds.Any = @ptrCast(&visitTypeSizeExpression);
+        const visit_type_align_expression: *const fn (*anyopaque, *const ast.TypeAlignExpression) Error!*ds.Any = @ptrCast(&visitTypeAlignExpression);
+        const visit_init_expression: *const fn (*anyopaque, *const ast.InitExpression) Error!*ds.Any = @ptrCast(&visitInitializeExpression);
+        const visit_value_size_expression: *const fn (*anyopaque, *const ast.ValueSizeExpression) Error!*ds.Any = @ptrCast(&visitValueSizeExpression);
+        const visit_vector_expression: *const fn (*anyopaque, *const ast.VectorExpression) Error!*ds.Any = @ptrCast(&visitVectorExpression);
+        const visit_literal_expression: *const fn (*anyopaque, *const ast.LiteralExpression) Error!*ds.Any = @ptrCast(&visitLiteralExpression);
+        const visit_character_expression: *const fn (*anyopaque, *const ast.CharacterExpression) Error!*ds.Any = @ptrCast(&visitCharacterExpression);
+        const visit_bool_expression: *const fn (*anyopaque, *const ast.BoolExpression) Error!*ds.Any = @ptrCast(&visitBooleanExpression);
+        const visit_bitwise_expression: *const fn (*anyopaque, *const ast.BitwiseExpression) Error!*ds.Any = @ptrCast(&visitBitwiseExpression);
+        const visit_undefined_expression: *const fn (*anyopaque, *const ast.UndefinedExpression) Error!*ds.Any = @ptrCast(&visitUndefinedExpression);
+        const visit_infinity_expression: *const fn (*anyopaque, *const ast.InfinityExpression) Error!*ds.Any = @ptrCast(&visitInfinityExpression);
+        const visit_destructuring_declaration: *const fn (*anyopaque, *const ast.DestructuringDeclaration) Error!*ds.Any = @ptrCast(&visitDestructuringDeclaration);
+        const visit_defer_statement: *const fn (*anyopaque, *const ast.DeferStatement) Error!*ds.Any = @ptrCast(&visitDeferStatement);
+        const visit_break_statement: *const fn (*anyopaque, *const ast.BreakStatement) Error!*ds.Any = @ptrCast(&visitBreakStatement);
+        const visit_continue_statement: *const fn (*anyopaque, *const ast.ContinueStatement) Error!*ds.Any = @ptrCast(&visitContinueStatement);
 
         const _visitor = ast.TreeVisitor{
             .ptr = ptr,
@@ -245,7 +245,7 @@ pub const LLVMBackend = struct {
         return self.llvm_module;
     }
 
-    pub fn visitBlockStatement(self: *Self, node: *ast.BlockStatement) !*ds.Any {
+    pub fn visitBlockStatement(self: *Self, node: *const ast.BlockStatement) !*ds.Any {
         log("Visiting block statement", .{}, .{ .module = .Codegen });
         try self.pushAllocaInstScope();
         try self.defer_calls_stack.items[self.defer_calls_stack.items.len - 1].pushNewScope();
@@ -273,7 +273,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitFieldDeclaration(self: *Self, node: *ast.FieldDeclaration) !*ds.Any {
+    pub fn visitFieldDeclaration(self: *Self, node: *const ast.FieldDeclaration) !*ds.Any {
         log("Visiting field declaration", .{}, .{ .module = .Codegen });
         const var_name = node.name.literal;
         var field_type = node.field_type;
@@ -350,7 +350,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitDestructuringDeclaration(self: *Self, node: *ast.DestructuringDeclaration) !*ds.Any {
+    pub fn visitDestructuringDeclaration(self: *Self, node: *const ast.DestructuringDeclaration) !*ds.Any {
         log("Visiting destructuring declaration", .{}, .{ .module = .Codegen });
         const tuple_value = try self.llvmNodeValue(try node.value.accept(self.visitor));
         const tuple_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
@@ -376,13 +376,13 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitConstDeclaration(self: *Self, node: *ast.ConstDeclaration) !*ds.Any {
+    pub fn visitConstDeclaration(self: *Self, node: *const ast.ConstDeclaration) !*ds.Any {
         log("Visiting const declaration", .{}, .{ .module = .Codegen });
         _ = node;
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitFunctionPrototype(self: *Self, node: *ast.FunctionPrototype) !*ds.Any {
+    pub fn visitFunctionPrototype(self: *Self, node: *const ast.FunctionPrototype) !*ds.Any {
         log("Visiting function prototype", .{}, .{ .module = .Codegen });
         const parameters = node.parameters;
         const parameters_size = parameters.items.len;
@@ -418,12 +418,12 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = function });
     }
 
-    pub fn visitOperatorFunctionDeclaration(self: *Self, node: *ast.OperatorFunctionDeclaration) !*ds.Any {
+    pub fn visitOperatorFunctionDeclaration(self: *Self, node: *const ast.OperatorFunctionDeclaration) !*ds.Any {
         log("Visiting operator function declaration", .{}, .{ .module = .Codegen });
         return node.function.accept(self.visitor);
     }
 
-    pub fn visitIntrinsicPrototype(self: *Self, node: *ast.IntrinsicPrototype) !*ds.Any {
+    pub fn visitIntrinsicPrototype(self: *Self, node: *const ast.IntrinsicPrototype) !*ds.Any {
         log("Visiting intrinsic prototype", .{}, .{ .module = .Codegen });
         const name = node.name.literal;
         const prototype_parameters = node.parameters;
@@ -446,7 +446,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = function });
     }
 
-    pub fn visitFunctionDeclaration(self: *Self, node: *ast.FunctionDeclaration) !*ds.Any {
+    pub fn visitFunctionDeclaration(self: *Self, node: *const ast.FunctionDeclaration) !*ds.Any {
         log("Visiting function declaration", .{}, .{ .module = .Codegen });
         self.is_on_global_scope = false;
         const prototype = node.prototype;
@@ -499,7 +499,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = function });
     }
 
-    pub fn visitStructDeclaration(self: *Self, node: *ast.StructDeclaration) !*ds.Any {
+    pub fn visitStructDeclaration(self: *Self, node: *const ast.StructDeclaration) !*ds.Any {
         log("Visiting struct declaration", .{}, .{ .module = .Codegen });
         const struct_type = node.struct_type;
         if (struct_type.Struct.is_generic) {
@@ -511,13 +511,13 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMType = ret_type });
     }
 
-    pub fn visitEnumDeclaration(self: *Self, node: *ast.EnumDeclaration) !*ds.Any {
+    pub fn visitEnumDeclaration(self: *Self, node: *const ast.EnumDeclaration) !*ds.Any {
         _ = node;
         log("Visiting enum declaration", .{}, .{ .module = .Codegen });
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitIfStatement(self: *Self, node: *ast.IfStatement) !*ds.Any {
+    pub fn visitIfStatement(self: *Self, node: *const ast.IfStatement) !*ds.Any {
         log("Visiting if statement", .{}, .{ .module = .Codegen });
         const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
         const start_block = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("if.start"));
@@ -566,7 +566,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitSwitchExpression(self: *Self, node: *ast.SwitchExpression) !*ds.Any {
+    pub fn visitSwitchExpression(self: *Self, node: *const ast.SwitchExpression) !*ds.Any {
         log("Visiting switch expression", .{}, .{ .module = .Codegen });
         if (self.isGlobalBlock() and node.isConstant()) {
             const ret = try self.resolveConstantSwitchExpression(node);
@@ -630,7 +630,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = phi_node });
     }
 
-    pub fn visitForRangeStatement(self: *Self, node: *ast.ForRangeStatement) !*ds.Any {
+    pub fn visitForRangeStatement(self: *Self, node: *const ast.ForRangeStatement) !*ds.Any {
         log("Visiting for range statement", .{}, .{ .module = .Codegen });
         var start = try self.llvmResolveValue(try node.range_start.accept(self.visitor));
         var end = try self.llvmResolveValue(try node.range_end.accept(self.visitor));
@@ -668,7 +668,7 @@ pub const LLVMBackend = struct {
         llvm_core.LLVMAppendExistingBasicBlock(current_function, condition_block);
         llvm_core.LLVMPositionBuilderAtEnd(builder, condition_block);
         const variable = dereferencesLLVMPointer(alloc_inst, .Alloca);
-        const condition = self.createLLVMIntegersComparison(.SmallerEqual, variable, end);
+        const condition = self.createLLVMNumbersComparison(.SmallerEqual, variable, end);
         _ = llvm_core.LLVMBuildCondBr(builder, condition, body_block, end_block);
 
         llvm_core.LLVMAppendExistingBasicBlock(current_function, body_block);
@@ -695,7 +695,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitForEachStatement(self: *Self, node: *ast.ForEachStatement) !*ds.Any {
+    pub fn visitForEachStatement(self: *Self, node: *const ast.ForEachStatement) !*ds.Any {
         log("Visiting for each statement", .{}, .{ .module = .Codegen });
         var collection_expression = node.collection;
         const collection_exp_type = collection_expression.getTypeNode().?;
@@ -809,14 +809,41 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitForeverStatement(self: *Self, node: *ast.ForEverStatement) !*ds.Any {
+    pub fn visitForeverStatement(self: *Self, node: *const ast.ForEverStatement) !*ds.Any {
         log("Visiting forever statement", .{}, .{ .module = .Codegen });
-        _ = node;
-        _ = self;
-        return Error.NotImplemented;
+        const body_block = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("forever"));
+        const end_block = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("forever.end"));
+
+        try self.break_blocks_stack.append(end_block);
+        try self.continue_blocks_stack.append(body_block);
+
+        try self.pushAllocaInstScope();
+
+        const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
+        _ = llvm_core.LLVMBuildBr(builder, body_block);
+
+        llvm_core.LLVMAppendExistingBasicBlock(current_function, body_block);
+        llvm_core.LLVMPositionBuilderAtEnd(builder, body_block);
+
+        _ = try node.body.accept(self.visitor);
+        self.popAllocaInstScope();
+
+        if (self.has_break_or_continue_statement) {
+            self.has_break_or_continue_statement = false;
+        } else {
+            _ = llvm_core.LLVMBuildBr(builder, body_block);
+        }
+
+        _ = llvm_core.LLVMAppendExistingBasicBlock(current_function, end_block);
+        llvm_core.LLVMPositionBuilderAtEnd(builder, end_block);
+
+        _ = self.break_blocks_stack.pop();
+        _ = self.continue_blocks_stack.pop();
+
+        return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitWhileStatement(self: *Self, node: *ast.WhileStatement) !*ds.Any {
+    pub fn visitWhileStatement(self: *Self, node: *const ast.WhileStatement) !*ds.Any {
         log("Visiting while statement", .{}, .{ .module = .Codegen });
         const current_function = llvm_core.LLVMGetBasicBlockParent(llvm_core.LLVMGetInsertBlock(builder));
         const condition_branch = llvm_core.LLVMCreateBasicBlockInContext(llvm_context, self.cStr("while.condition"));
@@ -859,7 +886,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitSwitchStatement(self: *Self, node: *ast.SwitchStatement) !*ds.Any {
+    pub fn visitSwitchStatement(self: *Self, node: *const ast.SwitchStatement) !*ds.Any {
         log("Visiting switch statement", .{}, .{ .module = .Codegen });
         const blocks_count = node.cases.items.len;
         var llvm_branches = std.ArrayList(llvm_types.LLVMBasicBlockRef).init(self.allocator);
@@ -929,7 +956,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitReturnStatement(self: *Self, node: *ast.ReturnStatement) !*ds.Any {
+    pub fn visitReturnStatement(self: *Self, node: *const ast.ReturnStatement) !*ds.Any {
         log("Visiting return statement", .{}, .{ .module = .Codegen });
         self.has_return_statement = true;
 
@@ -937,7 +964,6 @@ pub const LLVMBackend = struct {
             const ret = llvm_core.LLVMBuildRetVoid(builder);
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
         }
-
         const value = try self.llvmNodeValue(try node.value.?.accept(self.visitor));
         const value_kind = llvm_core.LLVMGetValueKind(value);
 
@@ -972,7 +998,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitDeferStatement(self: *Self, node: *ast.DeferStatement) !*ds.Any {
+    pub fn visitDeferStatement(self: *Self, node: *const ast.DeferStatement) !*ds.Any {
         log("Visiting defer statement", .{}, .{ .module = .Codegen });
         const call_expression = node.call_expression;
         const callee = call_expression.call_expression.callee.literal_expression;
@@ -1043,7 +1069,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitBreakStatement(self: *Self, node: *ast.BreakStatement) !*ds.Any {
+    pub fn visitBreakStatement(self: *Self, node: *const ast.BreakStatement) !*ds.Any {
         log("Visiting break statement", .{}, .{ .module = .Codegen });
         self.has_break_or_continue_statement = true;
         for (1..node.times) |_| {
@@ -1053,7 +1079,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitContinueStatement(self: *Self, node: *ast.ContinueStatement) !*ds.Any {
+    pub fn visitContinueStatement(self: *Self, node: *const ast.ContinueStatement) !*ds.Any {
         log("Visiting continue statement", .{}, .{ .module = .Codegen });
         self.has_break_or_continue_statement = true;
         for (1..node.times) |_| {
@@ -1064,13 +1090,13 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitExpressionStatement(self: *Self, node: *ast.ExpressionStatement) !*ds.Any {
+    pub fn visitExpressionStatement(self: *Self, node: *const ast.ExpressionStatement) !*ds.Any {
         log("Visiting expression statement", .{}, .{ .module = .Codegen });
         _ = try node.expression.accept(self.visitor);
         return self.allocReturn(ds.Any, .Void);
     }
 
-    pub fn visitIfExpression(self: *Self, node: *ast.IfExpression) !*ds.Any {
+    pub fn visitIfExpression(self: *Self, node: *const ast.IfExpression) !*ds.Any {
         log("Visiting if expression", .{}, .{ .module = .Codegen });
         if (self.isGlobalBlock() and node.isConstant()) {
             const ret = try self.resolveConstantIfExpression(node);
@@ -1118,7 +1144,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = phi_node });
     }
 
-    pub fn visitTupleExpression(self: *Self, node: *ast.TupleExpression) !*ds.Any {
+    pub fn visitTupleExpression(self: *Self, node: *const ast.TupleExpression) !*ds.Any {
         log("Visiting tuple expression", .{}, .{ .module = .Codegen });
         const tuple_type = try self.llvmTypeFromLangType(node.value_type.?);
         const alloc_inst = llvm_core.LLVMBuildAlloca(builder, tuple_type, self.cStr("tuple"));
@@ -1136,7 +1162,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = alloc_inst });
     }
 
-    pub fn visitAssignExpression(self: *Self, node: *ast.AssignExpression) !*ds.Any {
+    pub fn visitAssignExpression(self: *Self, node: *const ast.AssignExpression) !*ds.Any {
         log("Visiting assign expression", .{}, .{ .module = .Codegen });
         const left_node = node.left;
 
@@ -1245,7 +1271,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitBinaryExpression(self: *Self, node: *ast.BinaryExpression) !*ds.Any {
+    pub fn visitBinaryExpression(self: *Self, node: *const ast.BinaryExpression) !*ds.Any {
         log("Visiting binary expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
@@ -1284,7 +1310,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitBitwiseExpression(self: *Self, node: *ast.BitwiseExpression) !*ds.Any {
+    pub fn visitBitwiseExpression(self: *Self, node: *const ast.BitwiseExpression) !*ds.Any {
         log("Visiting bitwise expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
@@ -1329,7 +1355,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitComparisonExpression(self: *Self, node: *ast.ComparisonExpression) !*ds.Any {
+    pub fn visitComparisonExpression(self: *Self, node: *const ast.ComparisonExpression) !*ds.Any {
         log("Visiting comparison expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
@@ -1391,7 +1417,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitLogicalExpression(self: *Self, node: *ast.LogicalExpression) !*ds.Any {
+    pub fn visitLogicalExpression(self: *Self, node: *const ast.LogicalExpression) !*ds.Any {
         log("Visiting logical expression", .{}, .{ .module = .Codegen });
         const lhs = try self.llvmResolveValue(try node.left.accept(self.visitor));
         const rhs = try self.llvmResolveValue(try node.right.accept(self.visitor));
@@ -1420,7 +1446,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitPrefixUnaryExpression(self: *Self, node: *ast.PrefixUnaryExpression) !*ds.Any {
+    pub fn visitPrefixUnaryExpression(self: *Self, node: *const ast.PrefixUnaryExpression) !*ds.Any {
         log("Visiting prefix unary expression", .{}, .{ .module = .Codegen });
         const operand = node.right;
         const operator_kind = node.operator_token.kind;
@@ -1516,7 +1542,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitPostfixUnaryExpression(self: *Self, node: *ast.PostfixUnaryExpression) !*ds.Any {
+    pub fn visitPostfixUnaryExpression(self: *Self, node: *const ast.PostfixUnaryExpression) !*ds.Any {
         log("Visiting postfix unary expression", .{}, .{ .module = .Codegen });
         const operand = node.right;
         const operator_kind = node.operator_token.kind;
@@ -1549,7 +1575,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitCallExpression(self: *Self, node: *ast.CallExpression) !*ds.Any {
+    pub fn visitCallExpression(self: *Self, node: *const ast.CallExpression) !*ds.Any {
         log("Visiting call expression", .{}, .{ .module = .Codegen });
         const callee_ast_node_type = node.callee.getAstNodeType();
 
@@ -1781,7 +1807,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitInitializeExpression(self: *Self, node: *ast.InitExpression) !*ds.Any {
+    pub fn visitInitializeExpression(self: *Self, node: *const ast.InitExpression) !*ds.Any {
         log("Visiting initialize expression", .{}, .{ .module = .Codegen });
         var struct_type: llvm_types.LLVMTypeRef = undefined;
         if (node.value_type.?.typeKind() == .GenericStruct) {
@@ -1813,7 +1839,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = alloc_inst });
     }
 
-    pub fn visitLambdaExpression(self: *Self, node: *ast.LambdaExpression) !*ds.Any {
+    pub fn visitLambdaExpression(self: *Self, node: *const ast.LambdaExpression) !*ds.Any {
         log("Visiting lambda expression", .{}, .{ .module = .Codegen });
         const lambda_name = try std.fmt.allocPrint(self.allocator, "_lambda{d}", .{self.lambda_unique_id});
         self.lambda_unique_id += 1;
@@ -1873,7 +1899,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = function });
     }
 
-    pub fn visitDotExpression(self: *Self, node: *ast.DotExpression) !*ds.Any {
+    pub fn visitDotExpression(self: *Self, node: *const ast.DotExpression) !*ds.Any {
         log("Visiting dot expression", .{}, .{ .module = .Codegen });
         const callee = node.callee;
         const callee_type = callee.getTypeNode().?;
@@ -1930,7 +1956,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitCastExpression(self: *Self, node: *ast.CastExpression) !*ds.Any {
+    pub fn visitCastExpression(self: *Self, node: *const ast.CastExpression) !*ds.Any {
         log("Visiting cast expression", .{}, .{ .module = .Codegen });
         const value = try self.llvmResolveValue(try node.value.accept(self.visitor));
         const value_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
@@ -1991,7 +2017,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitTypeSizeExpression(self: *Self, node: *ast.TypeSizeExpression) !*ds.Any {
+    pub fn visitTypeSizeExpression(self: *Self, node: *const ast.TypeSizeExpression) !*ds.Any {
         log("Visiting type size expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value_type.?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
@@ -2000,7 +2026,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitTypeAlignExpression(self: *Self, node: *ast.TypeAlignExpression) !*ds.Any {
+    pub fn visitTypeAlignExpression(self: *Self, node: *const ast.TypeAlignExpression) !*ds.Any {
         log("Visiting type align expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value_type.?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
@@ -2009,7 +2035,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitValueSizeExpression(self: *Self, node: *ast.ValueSizeExpression) !*ds.Any {
+    pub fn visitValueSizeExpression(self: *Self, node: *const ast.ValueSizeExpression) !*ds.Any {
         log("Visiting value size expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.value.getTypeNode().?);
         const data_layout = llvm_target.LLVMGetModuleDataLayout(self.llvm_module);
@@ -2018,7 +2044,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = type_size });
     }
 
-    pub fn visitIndexExpression(self: *Self, node: *ast.IndexExpression) !*ds.Any {
+    pub fn visitIndexExpression(self: *Self, node: *const ast.IndexExpression) !*ds.Any {
         log("Visiting index expression", .{}, .{ .module = .Codegen });
         const index = try self.llvmResolveValue(try node.index.accept(self.visitor));
         const ret = try self.accessArrayElement(node.value, index);
@@ -2027,14 +2053,14 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitEnumAccessExpression(self: *Self, node: *ast.EnumAccessExpression) !*ds.Any {
+    pub fn visitEnumAccessExpression(self: *Self, node: *const ast.EnumAccessExpression) !*ds.Any {
         log("Visiting enum access expression", .{}, .{ .module = .Codegen });
         const element_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const element_index = llvm_core.LLVMConstInt(element_type, @intCast(node.enum_element_index), 0);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = element_index });
     }
 
-    pub fn visitLiteralExpression(self: *Self, node: *ast.LiteralExpression) !*ds.Any {
+    pub fn visitLiteralExpression(self: *Self, node: *const ast.LiteralExpression) !*ds.Any {
         log("Visiting literal expression", .{}, .{ .module = .Codegen });
         const name = node.name.literal;
         const alloca_inst = self.alloca_inst_table.lookup(name);
@@ -2046,14 +2072,14 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitNumberExpression(self: *Self, node: *ast.NumberExpression) !*ds.Any {
+    pub fn visitNumberExpression(self: *Self, node: *const ast.NumberExpression) !*ds.Any {
         log("Visiting number expression", .{}, .{ .module = .Codegen });
         const number_type = node.getTypeNode().?;
         const value = try self.llvmNumberValue(node.value.literal, number_type.Number.number_kind);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = value });
     }
 
-    pub fn visitArrayExpression(self: *Self, node: *ast.ArrayExpression) !*ds.Any {
+    pub fn visitArrayExpression(self: *Self, node: *const ast.ArrayExpression) !*ds.Any {
         log("Visiting array expression", .{}, .{ .module = .Codegen });
         const node_values = node.values;
         const size = node_values.items.len;
@@ -2068,7 +2094,6 @@ pub const LLVMBackend = struct {
             const ret = llvm_core.LLVMConstArray(array_type, @ptrCast(values.items), @intCast(values.items.len));
             return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
         }
-        log("type : {any}", .{node.getTypeNode().?.StaticArray.element_type}, .{ .module = .Codegen });
         const array_type = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const array_element_type = llvm_core.LLVMGetElementType(array_type);
 
@@ -2093,7 +2118,7 @@ pub const LLVMBackend = struct {
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = alloca });
     }
 
-    pub fn visitVectorExpression(self: *Self, node: *ast.VectorExpression) !*ds.Any {
+    pub fn visitVectorExpression(self: *Self, node: *const ast.VectorExpression) !*ds.Any {
         log("Visiting vector expression", .{}, .{ .module = .Codegen });
         const array = node.array;
         const array_type = array.value_type.?.StaticArray;
@@ -2185,38 +2210,38 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    pub fn visitStringExpression(self: *Self, node: *ast.StringExpression) !*ds.Any {
+    pub fn visitStringExpression(self: *Self, node: *const ast.StringExpression) !*ds.Any {
         log("Visiting string expression", .{}, .{ .module = .Codegen });
         return self.resolveConstantStringExpression(node.value.literal);
     }
 
-    pub fn visitCharacterExpression(self: *Self, node: *ast.CharacterExpression) !*ds.Any {
+    pub fn visitCharacterExpression(self: *Self, node: *const ast.CharacterExpression) !*ds.Any {
         log("Visiting character expression", .{}, .{ .module = .Codegen });
         const value = node.value.literal[0];
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = llvm_core.LLVMConstInt(llvm_int8_type, @intCast(value), 0) });
     }
 
-    pub fn visitBooleanExpression(self: *Self, node: *ast.BoolExpression) !*ds.Any {
+    pub fn visitBooleanExpression(self: *Self, node: *const ast.BoolExpression) !*ds.Any {
         log("Visiting boolean expression", .{}, .{ .module = .Codegen });
         const ret = llvm_core.LLVMConstInt(llvm_int1_type, @intFromBool(node.value.kind == .True), 0);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitNullExpression(self: *Self, node: *ast.NullExpression) !*ds.Any {
+    pub fn visitNullExpression(self: *Self, node: *const ast.NullExpression) !*ds.Any {
         log("Visiting null expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.null_base_type);
         const ret = llvm_core.LLVMConstNull(llvm_type);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitUndefinedExpression(self: *Self, node: *ast.UndefinedExpression) !*ds.Any {
+    pub fn visitUndefinedExpression(self: *Self, node: *const ast.UndefinedExpression) !*ds.Any {
         log("Visiting undefined expression", .{}, .{ .module = .Codegen });
         const llvm_type = try self.llvmTypeFromLangType(node.base_type.?);
         const ret = llvm_core.LLVMGetUndef(llvm_type);
         return self.allocReturn(ds.Any, ds.Any{ .LLVMValue = ret });
     }
 
-    pub fn visitInfinityExpression(self: *Self, node: *ast.InfinityExpression) !*ds.Any {
+    pub fn visitInfinityExpression(self: *Self, node: *const ast.InfinityExpression) !*ds.Any {
         log("Visiting infinity expression", .{}, .{ .module = .Codegen });
         const type_ = try self.llvmTypeFromLangType(node.getTypeNode().?);
         const value = llvm_core.LLVMConstReal(type_, std.math.inf(f64));
@@ -2258,23 +2283,23 @@ pub const LLVMBackend = struct {
         switch (size) {
             .Integer1 => {
                 const value = try std.fmt.parseInt(i64, value_literal, 10);
-                return llvm_core.LLVMConstInt(llvm_int1_type, @intCast(value), 1);
+                return llvm_core.LLVMConstInt(llvm_int1_type, @bitCast(value), 1);
             },
             .Integer8 => {
                 const value = try std.fmt.parseInt(i64, value_literal, 10);
-                return llvm_core.LLVMConstInt(llvm_int8_type, @intCast(value), 1);
+                return llvm_core.LLVMConstInt(llvm_int8_type, @bitCast(value), 1);
             },
             .Integer16 => {
                 const value = try std.fmt.parseInt(i64, value_literal, 10);
-                return llvm_core.LLVMConstInt(llvm_int16_type, @intCast(value), 1);
+                return llvm_core.LLVMConstInt(llvm_int16_type, @bitCast(value), 1);
             },
             .Integer32 => {
                 const value = try std.fmt.parseInt(i64, value_literal, 10);
-                return llvm_core.LLVMConstInt(llvm_int32_type, @intCast(value), 1);
+                return llvm_core.LLVMConstInt(llvm_int32_type, @bitCast(value), 1);
             },
             .Integer64 => {
                 const value = try std.fmt.parseInt(i64, value_literal, 10);
-                return llvm_core.LLVMConstInt(llvm_int64_type, @intCast(value), 1);
+                return llvm_core.LLVMConstInt(llvm_int64_type, @bitCast(value), 1);
             },
             .UInteger8 => {
                 const value = try std.fmt.parseInt(u64, value_literal, 10);
@@ -2306,6 +2331,7 @@ pub const LLVMBackend = struct {
     fn llvmTypeFromLangType(self: *Self, type_: *types.Type) Error!llvm_types.LLVMTypeRef {
         log("Resolving LLVM Type from Lang Type", .{}, .{ .module = .Codegen });
         const type_kind = type_.typeKind();
+        log("Type Kind: {any}", .{type_kind}, .{ .module = .Codegen });
         if (type_kind == .Number) {
             const number_type = type_.Number;
             switch (number_type.number_kind) {
@@ -2414,6 +2440,7 @@ pub const LLVMBackend = struct {
             const generic_parameter = type_.GenericParameter;
             const generic_name = generic_parameter.name;
             if (!self.generic_types.contains(generic_name)) {
+                log("Trying to resolve an invalid generic parameter name: {s}", .{generic_name}, .{ .module = .Codegen });
                 self.internalCompilerError("Trying to resolve an invalid generic parameter name");
             }
             return self.llvmTypeFromLangType(self.generic_types.get(generic_name).?);
@@ -2424,7 +2451,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    fn createGlobalFieldDeclaration(self: *Self, name: []const u8, value: *ast.Expression, type_: *types.Type) !void {
+    fn createGlobalFieldDeclaration(self: *Self, name: []const u8, value: *const ast.Expression, type_: *types.Type) !void {
         log("Creating global field declaration", .{}, .{ .module = .Codegen });
         _ = name;
         _ = value;
@@ -2501,13 +2528,18 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    fn createLLVMNumbersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
+    fn createLLVMNumbersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
         log("Creating LLVM numbers comparison", .{}, .{ .module = .Codegen });
-        _ = op;
-        _ = left;
-        _ = right;
-        _ = self;
-        return Error.NotImplemented;
+        if (isIntegerTy(llvm_core.LLVMTypeOf(left)) and isIntegerTy(llvm_core.LLVMTypeOf(right))) {
+            return self.createLLVMIntegersComparison(op, left, right);
+        }
+
+        if (isFloatingPointTy(llvm_core.LLVMTypeOf(left)) and isFloatingPointTy(llvm_core.LLVMTypeOf(right))) {
+            return self.createLLVMFloatsComparison(op, left, right);
+        }
+
+        self.internalCompilerError("Invalid comparison operator for numbers types");
+        unreachable;
     }
 
     fn createLLVMIntegersComparison(self: *Self, op: tokenizer.TokenKind, left: llvm_types.LLVMValueRef, right: llvm_types.LLVMValueRef) llvm_types.LLVMValueRef {
@@ -2706,9 +2738,17 @@ pub const LLVMBackend = struct {
 
     fn createLLVMStringLength(self: *Self, string: llvm_types.LLVMValueRef) !llvm_types.LLVMValueRef {
         log("Creating LLVM string length", .{}, .{ .module = .Codegen });
-        _ = string;
-        _ = self;
-        return Error.NotImplemented;
+        const function_name = "strlen";
+        var function = try self.lookupFunction(function_name);
+        if (function == null) {
+            var param_types = [1]llvm_types.LLVMTypeRef{llvm_int8_ptr_type};
+            const fun_type = llvm_core.LLVMFunctionType(llvm_int64_type, &param_types, 1, 0);
+            function = llvm_core.LLVMAddFunction(self.llvm_module, self.cStr(function_name), fun_type);
+            llvm_core.LLVMSetLinkage(function.?, .LLVMExternalLinkage);
+        }
+        var args = [_]llvm_types.LLVMValueRef{string};
+        const ret = llvm_core.LLVMBuildCall2(builder, llvm_core.LLVMGetElementType(llvm_core.LLVMTypeOf(function.?)), function.?, @ptrCast(&args), 1, "");
+        return ret;
     }
 
     fn createLLVMStructType(self: *Self, name: []const u8, members: []const *types.Type, is_packed: bool, is_extern: bool) !llvm_types.LLVMTypeRef {
@@ -2895,8 +2935,7 @@ pub const LLVMBackend = struct {
                 }
 
                 if (llvm_core.LLVMIsAConstant(array) != null) {
-                    // return llvm_core.LLVMGetAggregateElement(array, @intCast(llvm_core.LLVMConstIntGetZExtValue(index)));
-                    return llvm_core.LLVMGetElementAsConstant(array, @intCast(llvm_core.LLVMConstIntGetZExtValue(index)));
+                    return llvm_core.LLVMConstExtractElement(array, index);
                 }
             },
             .dot_expression => |*dot_expression| {
@@ -2914,7 +2953,7 @@ pub const LLVMBackend = struct {
         unreachable;
     }
 
-    fn resolveGenericFunction(self: *Self, node: *ast.FunctionDeclaration, generic_parameters: []const *types.Type) !llvm_types.LLVMValueRef {
+    fn resolveGenericFunction(self: *Self, node: *const ast.FunctionDeclaration, generic_parameters: []const *types.Type) !llvm_types.LLVMValueRef {
         log("Resolving generic function", .{}, .{ .module = .Codegen });
         self.is_on_global_scope = false;
         const prototype = node.prototype;
@@ -2985,16 +3024,15 @@ pub const LLVMBackend = struct {
             _ = llvm_core.LLVMBuildStore(builder, arg, alloca_inst);
         }
 
-        const body = node.body;
-        _ = try body.accept(self.visitor);
+        _ = try node.body.accept(self.visitor);
 
         self.popAllocaInstScope();
         _ = self.defer_calls_stack.pop();
 
         _ = self.alloca_inst_table.define(mangled_name, try self.allocReturn(ds.Any, ds.Any{ .LLVMValue = function }));
 
-        if (body.getAstNodeType() == .Block) {
-            const statements = body.block_statement.statements;
+        if (node.body.getAstNodeType() == .Block) {
+            const statements = node.body.block_statement.statements;
             if (statements.items.len == 0 or statements.getLast().getAstNodeType() != .Return) {
                 _ = llvm_core.LLVMBuildUnreachable(builder);
             }
@@ -3045,12 +3083,10 @@ pub const LLVMBackend = struct {
 
             if (llvm_core.LLVMIsAConstantArray(initializer) != null) {
                 return llvm_core.LLVMGetElementAsConstant(initializer, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
-                // return llvm_core.LLVMGetAggregateElement(initializer, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
             }
 
             if (llvm_core.LLVMIsAConstant(initializer) != null) {
                 return llvm_core.LLVMGetElementAsConstant(initializer, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
-                // return llvm_core.LLVMGetAggregateElement(initializer, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
             }
         }
 
@@ -3065,7 +3101,6 @@ pub const LLVMBackend = struct {
 
         if (llvm_core.LLVMIsAConstant(llvm_array) != null) {
             return llvm_core.LLVMGetElementAsConstant(llvm_array, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
-            // return llvm_core.LLVMGetAggregateElement(llvm_array, @intCast(llvm_core.LLVMConstIntGetZExtValue(constants_index)));
         }
 
         self.internalCompilerError("Invalid index expression");
@@ -3077,15 +3112,14 @@ pub const LLVMBackend = struct {
         const count = expression.tokens.items.len;
         for (0..count) |i| {
             const condition = try self.llvmResolveValue(try expression.conditions.items[i].accept(self.visitor));
-            // isOneValue
-            if (llvm_core.LLVMIsAConstantInt(condition) != null and llvm_core.LLVMIsAConstant(condition) != null and llvm_core.LLVMConstIntGetSExtValue(condition) == 1) {
+            if (llvm_core.LLVMConstIntGetZExtValue(condition) == 1) {
                 return try self.llvmResolveValue(try expression.values.items[i].accept(self.visitor));
             }
         }
         return null;
     }
 
-    fn resolveConstantSwitchExpression(self: *Self, expression: *ast.SwitchExpression) !llvm_types.LLVMValueRef {
+    fn resolveConstantSwitchExpression(self: *Self, expression: *const ast.SwitchExpression) !llvm_types.LLVMValueRef {
         log("Resolving constant switch expression", .{}, .{ .module = .Codegen });
         const op = expression.op;
         const constant_argument = try self.llvmResolveValue(try expression.argument.accept(self.visitor));
@@ -3321,6 +3355,11 @@ pub const LLVMBackend = struct {
     fn isFloatingPointTy(type_: llvm_types.LLVMTypeRef) bool {
         const type_kind = llvm_core.LLVMGetTypeKind(type_);
         return type_kind == .LLVMFloatTypeKind or type_kind == .LLVMDoubleTypeKind;
+    }
+
+    fn isIntegerTy(type_: llvm_types.LLVMTypeRef) bool {
+        const type_kind = llvm_core.LLVMGetTypeKind(type_);
+        return type_kind == .LLVMIntegerTypeKind;
     }
 
     fn isArrayTy(type_: llvm_types.LLVMTypeRef) bool {

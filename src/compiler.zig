@@ -29,7 +29,7 @@ pub const Compiler = struct {
         };
     }
 
-    pub fn parseSouceCode(self: *Self, source_file: []const u8) *CompilationUnit {
+    pub fn parseSouceCode(self: *Self, source_file: []const u8, gen_ast: bool) *CompilationUnit {
         const file_id = self.context.source_manager.registerSourcePath(source_file) catch {
             std.debug.print("Failed to register source file '{s}'\n", .{source_file});
             return std.process.exit(1);
@@ -50,11 +50,40 @@ pub const Compiler = struct {
             self.context.diagnostics.reportDiagnostics(.Error);
             std.process.exit(1);
         }
+
+        if (gen_ast) {
+            self.generateAstJson(compilation_unit);
+        }
+
         return compilation_unit;
     }
 
+    pub fn generateAstJson(self: *const Self, compilation_unit: *const CompilationUnit) void {
+        const out = std.json.fmt(
+            compilation_unit.tree_nodes.items,
+            .{ .whitespace = .indent_2 },
+        );
+        const json_string = std.fmt.allocPrint(self.allocator, "{any}\n", .{out}) catch |err| {
+            std.debug.print("Failed to format AST to JSON: {any}\n", .{err});
+            std.process.exit(1);
+        };
+        const file = std.fs.cwd().createFile(
+            "ast.json",
+            .{ .read = true },
+        ) catch |err| {
+            std.debug.print("Failed to create file: {any}\n", .{err});
+            std.process.exit(1);
+        };
+        defer file.close();
+
+        _ = file.writeAll(json_string) catch |err| {
+            std.debug.print("Failed to write to file: {any}\n", .{err});
+            std.process.exit(1);
+        };
+    }
+
     pub fn checkSourceCode(self: *Self, source_file: []const u8) void {
-        const compilation_unit = self.parseSouceCode(source_file);
+        const compilation_unit = self.parseSouceCode(source_file, false);
 
         var type_checker = TypeChecker.init(self.allocator, self.context) catch {
             std.debug.print("Failed to create type checker for source file '{s}'\n", .{source_file});
@@ -83,7 +112,7 @@ pub const Compiler = struct {
     }
 
     pub fn emitLLVMIR(self: *Self, source_file: []const u8) void {
-        const compilation_unit = self.parseSouceCode(source_file);
+        const compilation_unit = self.parseSouceCode(source_file, false);
 
         var type_checker = TypeChecker.init(self.allocator, self.context) catch {
             std.debug.print("Failed to create type checker for source file '{s}'\n", .{source_file});
@@ -94,6 +123,8 @@ pub const Compiler = struct {
             std.debug.print("Failed to type check source file '{s}'\n", .{source_file});
             std.debug.print("Typechecker Error: {any}\n", .{err});
         };
+
+        self.generateAstJson(compilation_unit);
 
         if (self.context.options.should_report_warns and self.context.diagnostics.levelCount(.Warning) > 0) {
             self.context.diagnostics.reportDiagnostics(.Warning);
@@ -144,25 +175,7 @@ pub const Compiler = struct {
             std.process.exit(1);
         }
 
-        const compilation_unit = self.parseSouceCode(source_file);
-        const out = std.json.fmt(
-            compilation_unit.tree_nodes.items,
-            .{ .whitespace = .indent_2 },
-        );
-        const json_string = try std.fmt.allocPrint(self.allocator, "{any}\n", .{out});
-        const file = std.fs.cwd().createFile(
-            "ast.json",
-            .{ .read = true },
-        ) catch |err| {
-            std.debug.print("Failed to create file: {any}\n", .{err});
-            std.process.exit(1);
-        };
-        defer file.close();
-
-        _ = file.writeAll(json_string) catch |err| {
-            std.debug.print("Failed to write to file: {any}\n", .{err});
-            std.process.exit(1);
-        };
+        const compilation_unit = self.parseSouceCode(source_file, false);
 
         var typechecker = TypeChecker.init(self.allocator, self.context) catch {
             std.debug.print("Failed to create type checker for source file '{s}'\n", .{source_file});

@@ -64,10 +64,11 @@ pub const Error = error{
     NotOpenForReading,
     NetNameDeleted,
 };
+
 pub fn diagnosticLevelLiteral(level: DiagnosticLevel) []const u8 {
     return switch (level) {
-        DiagnosticLevel.Error => "ERROR",
-        DiagnosticLevel.Warning => "WARNING",
+        DiagnosticLevel.Error => "\x1b[31m\x1b[1mERROR\x1b[0m",
+        DiagnosticLevel.Warning => "\x1b[32m\x1b[1mWARNING\x1b[0m",
     };
 }
 
@@ -104,7 +105,7 @@ pub const DiagnosticEngine = struct {
     }
 
     pub fn reportDiagnostics(self: *Self, level: DiagnosticLevel) void {
-        std.debug.print("{s}s: {d}", .{
+        std.debug.print("{s}s: {d} |", .{
             diagnosticLevelLiteral(level),
             self.levelCount(level),
         });

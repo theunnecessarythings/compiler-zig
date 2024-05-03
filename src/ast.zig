@@ -161,7 +161,12 @@ pub const Expression = union(enum) {
 
     pub fn jsonStringify(self: *const Self, jws: anytype) !void {
         return switch (self.*) {
-            inline else => |*x| x.jsonStringify(jws),
+            inline else => |*x| {
+                try jws.beginObject();
+                try jws.objectField(@tagName(self.*));
+                try x.jsonStringify(jws);
+                try jws.endObject();
+            },
         };
     }
 };
@@ -204,7 +209,12 @@ pub const Statement = union(enum) {
 
     pub fn jsonStringify(self: *const Self, jws: anytype) !void {
         switch (self.*) {
-            inline else => |*x| try x.jsonStringify(jws),
+            inline else => |*x| {
+                try jws.beginObject();
+                try jws.objectField(@tagName(self.*));
+                try x.jsonStringify(jws);
+                try jws.endObject();
+            },
         }
     }
 };
@@ -2113,10 +2123,7 @@ pub const ArrayExpression = struct {
         const size = values.items.len;
         const element_type = if (size == 0) @constCast(&Type.NONE_TYPE) else values.items[0].getTypeNode();
         const value_type = allocator.create(types.Type) catch unreachable;
-        value_type.* = Type{ .StaticArray = types.StaticArrayType.init(
-            element_type,
-            @intCast(size),
-        ) };
+        value_type.* = Type{ .StaticArray = types.StaticArrayType.init(element_type, @intCast(size), null) };
         var is_constants_array = true;
         for (values.items) |value| {
             if (!value.isConstant()) {
@@ -2158,6 +2165,12 @@ pub const ArrayExpression = struct {
         try jws.beginObject();
         try jws.objectField("values");
         try jws.write(self.values.items);
+        try jws.objectField("is_constants_array");
+        try jws.write(self.is_constants_array);
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
+        try jws.objectField("position");
+        try jws.write(self.position);
         try jws.endObject();
     }
 };
@@ -2248,6 +2261,8 @@ pub const StringExpression = struct {
         try jws.beginObject();
         try jws.objectField("value");
         try jws.write(self.value);
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
         try jws.endObject();
     }
 };
@@ -2470,6 +2485,10 @@ pub const NullExpression = struct {
         try jws.beginObject();
         try jws.objectField("value");
         try jws.write(self.value);
+        try jws.objectField("null_base_type");
+        try jws.write(self.null_base_type);
+        try jws.objectField("value_type");
+        try jws.write(self.value_type);
         try jws.endObject();
     }
 };

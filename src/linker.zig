@@ -57,6 +57,7 @@ pub const ExternalLinker = struct {
         }
         if (result.stderr.len != 0) {
             std.debug.print("{s}\n", .{result.stderr});
+            std.process.exit(1);
         }
 
         return 0;

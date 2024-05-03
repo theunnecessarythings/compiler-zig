@@ -36,8 +36,10 @@ fn runCmd(allocator: std.mem.Allocator, file_path: []const u8, cmd: []const u8) 
         } else if (std.mem.eql(u8, cmd, "emit-ir")) {
             compiler.emitLLVMIR(file_path);
         } else if (std.mem.eql(u8, cmd, "generate-code")) {
-            const compilation_unit = compiler.parseSouceCode(file_path);
+            const compilation_unit = compiler.parseSouceCode(file_path, false);
             codegen.generateCodeFromAst(allocator, compilation_unit);
+        } else if (std.mem.eql(u8, cmd, "gen-ast")) {
+            _ = compiler.parseSouceCode(file_path, true);
         } else {
             std.debug.print("Invalid command {s} \n", .{cmd});
         }
@@ -98,6 +100,8 @@ pub fn main() !void {
             try runCmd(allocator, file_path.?, "emit-ir");
         } else if (std.mem.eql(u8, cmd, "generate-code")) {
             try runCmd(allocator, file_path.?, "generate-code");
+        } else if (std.mem.eql(u8, cmd, "gen-ast")) {
+            try runCmd(allocator, file_path.?, "gen-ast");
         } else {
             std.debug.print("Invalid command {s} \n", .{cmd});
             std.process.exit(1);

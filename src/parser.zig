@@ -210,7 +210,7 @@ pub const Parser = struct {
                         library_name.position,
                         try std.fmt.allocPrint(self.allocator, "No standard library with name: '{s}'", .{library_name.literal}),
                     );
-                    return Error.Stop;
+                    return Error.ParsingError;
                 };
 
                 const nodes = try self.parseSingleSourceFile(library_path);
@@ -235,7 +235,7 @@ pub const Parser = struct {
                 library_name.position,
                 try std.fmt.allocPrint(self.allocator, "No standrad library with name: '{s}'", .{library_name.literal}),
             );
-            return Error.Stop;
+            return Error.ParsingError;
         };
 
         return self.parseSingleSourceFile(library_path);
@@ -261,7 +261,7 @@ pub const Parser = struct {
                         library_name.position,
                         try std.fmt.allocPrint(self.allocator, "Library not found: '{s}'", .{library_name.literal}),
                     );
-                    return Error.Stop;
+                    return Error.ParsingError;
                 };
 
                 const nodes = try self.parseSingleSourceFile(library_path);
@@ -286,7 +286,7 @@ pub const Parser = struct {
                 library_name.position,
                 try std.fmt.allocPrint(self.allocator, "Library not found: '{s}'", .{library_name.literal}),
             );
-            return Error.Stop;
+            return Error.ParsingError;
         };
 
         return self.parseSingleSourceFile(library_path);
@@ -313,7 +313,7 @@ pub const Parser = struct {
 
         if (self.context.type_alias_table.contains(alias_token.literal)) {
             try self.context.diagnostics.reportError(alias_token.position, try std.fmt.allocPrint(self.allocator, "There already a type with name '{s}'", .{alias_token.literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.assertKind(.Equal, "Expect = after alias name");
@@ -321,12 +321,12 @@ pub const Parser = struct {
 
         if (types.isEnumType(actual_type)) {
             try self.context.diagnostics.reportError(alias_token.position, "You can't use type alias for enum name");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (types.isEnumElementType(actual_type)) {
             try self.context.diagnostics.reportError(alias_token.position, "You can't use type alias for enum element");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.assertKind(.Semicolon, "Expect ; after actual type");
@@ -336,7 +336,7 @@ pub const Parser = struct {
     fn parseSingleSourceFile(self: *Self, path: []const u8) Error!std.ArrayList(*ast.Statement) {
         log("Parsing single source file", .{}, .{ .module = .Parser });
         const file_name = path;
-        const file = std.fs.cwd().openFile(path, .{}) catch return Error.Stop;
+        const file = std.fs.cwd().openFile(path, .{}) catch return Error.ParsingError;
         defer file.close();
         const source_content = try file.readToEndAlloc(self.allocator, comptime std.math.maxInt(usize));
 
@@ -345,7 +345,7 @@ pub const Parser = struct {
         var parser = try Parser.init(self.allocator, self.context, &tokenizer_);
         const compilation_unit = try parser.parseCompilationUnit();
         if (self.context.diagnostics.levelCount(.Error) > 0) {
-            return Error.Stop;
+            return Error.ParsingError;
         }
         return compilation_unit.tree_nodes;
     }
@@ -379,7 +379,7 @@ pub const Parser = struct {
             },
             else => {
                 try self.context.diagnostics.reportError(self.peekCurrent().position, "Invalid top level declaration statement");
-                return Error.Stop;
+                return Error.ParsingError;
             },
         };
     }
@@ -505,7 +505,7 @@ pub const Parser = struct {
             intrinsic_name = intrinsic_token.literal;
             if (!self.isValidIntrinsicName(intrinsic_token)) {
                 try self.context.diagnostics.reportError(intrinsic_token.position, "Intrinsic name can't have space or be empty");
-                return Error.Stop;
+                return Error.ParsingError;
             }
             try self.assertKind(.CloseParen, "Expect ) after native intrinsic name");
         }
@@ -516,7 +516,7 @@ pub const Parser = struct {
         const is_generic_function = self.isCurrentKind(.Smaller);
         if (is_generic_function) {
             try self.context.diagnostics.reportError(name.position, "intrinsic function can't has generic parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (intrinsic_name == null) {
@@ -532,7 +532,7 @@ pub const Parser = struct {
             while (self.isSourceAvailable() and !self.isCurrentKind(.CloseParen)) {
                 if (has_varargs) {
                     try self.context.diagnostics.reportError(self.previous_token.?.position, "Varargs must be the last parameter in the function");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 if (self.isCurrentKind(.Varargs)) {
@@ -564,7 +564,7 @@ pub const Parser = struct {
 
         if (return_type.typeKind() == .StaticArray) {
             try self.context.diagnostics.reportError(name.position, try std.fmt.allocPrint(self.allocator, "Function cannot return array type '{any}'", .{return_type}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.assertKind(.Semicolon, "Expect ; after external function declaration");
@@ -585,7 +585,7 @@ pub const Parser = struct {
         const is_generic_function = self.isCurrentKind(.Smaller);
         if (is_external and is_generic_function) {
             try self.context.diagnostics.reportError(name.position, "external function can't has generic parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (is_generic_function) {
@@ -612,7 +612,7 @@ pub const Parser = struct {
             while (self.isSourceAvailable() and !self.isCurrentKind(.CloseParen)) {
                 if (has_varargs) {
                     try self.context.diagnostics.reportError(self.previous_token.?.position, "Varargs must be the last parameter in the function");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 if (self.isCurrentKind(.Varargs)) {
@@ -655,17 +655,17 @@ pub const Parser = struct {
         if (std.mem.eql(u8, name.literal, "main")) {
             if (kind != .Normal) {
                 try self.context.diagnostics.reportError(name.position, "main can't be prefix, infix or postfix function");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (is_external) {
                 try self.context.diagnostics.reportError(name.position, "main can't be external function");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (!(types.isVoidType(return_type) or types.isInteger32Type(return_type) or types.isInteger64Type(return_type))) {
                 try self.context.diagnostics.reportError(name.position, "main has invalid return type expect void, int32 or int64");
-                return Error.Stop;
+                return Error.ParsingError;
             }
         }
 
@@ -714,7 +714,7 @@ pub const Parser = struct {
 
         const posiiton = self.peekPrevious().position;
         try self.context.diagnostics.reportError(posiiton, "function declaration without a body: `{ <body> }` or `= <value>;`");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseOperatorFunctionDeclaration(self: *Self, kind: FunctionKind) Error!*ast.Statement {
@@ -800,7 +800,7 @@ pub const Parser = struct {
         const posiiton = self.peekPrevious().position;
         try self.context.diagnostics.reportError(posiiton, "operator function declaration without a body: `{ <body> }` or `= <value>;`");
 
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseOperatorFunctionOperator(self: *Self, kind: FunctionKind) !Token {
@@ -813,24 +813,24 @@ pub const Parser = struct {
 
         _ = tokenizer.overloadingOperatorLiteral(op.kind) catch {
             try self.context.diagnostics.reportError(op.position, "Unsupported Operator for operator overloading function");
-            return Error.Stop;
+            return Error.ParsingError;
         };
 
         const op_kind = op.kind;
 
         if (kind == .Prefix and !tokenizer.overloadingPrefixOperators(op_kind)) {
             try self.context.diagnostics.reportError(op.position, "this operator can't be used as prefix operator");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (kind == .Infix and !tokenizer.overloadingInfixOperators(op_kind)) {
             try self.context.diagnostics.reportError(op.position, "this operator can't be used as infix operator");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (kind == .Postfix and !tokenizer.overloadingPostfixOperators(op_kind)) {
             try self.context.diagnostics.reportError(op.position, "this operator can't be used as postfix operator");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         return op;
@@ -849,7 +849,7 @@ pub const Parser = struct {
 
         if (self.context.structures.contains(struct_name_str)) {
             try self.context.diagnostics.reportError(struct_name.position, try std.fmt.allocPrint(self.allocator, "There is already struct with name '{s}'", .{struct_name_str}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (self.context.type_alias_table.contains(struct_name_str)) {
@@ -857,7 +857,7 @@ pub const Parser = struct {
                 struct_name.position,
                 try std.fmt.allocPrint(self.allocator, "There is already a type with name '{s}'", .{struct_name_str}),
             );
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         self.current_struct_name = struct_name.literal;
@@ -907,7 +907,7 @@ pub const Parser = struct {
             const field_name = (try self.consumeKind(.Identifier, "Expect Symbol as struct name")).?;
             if (ds.contains([]const u8, fields_names.items, field_name.literal)) {
                 try self.context.diagnostics.reportError(field_name.position, try std.fmt.allocPrint(self.allocator, "There is already struct member with name '{s}'", .{field_name.literal}));
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             try fields_names.append(field_name.literal);
@@ -916,7 +916,7 @@ pub const Parser = struct {
             if (field_type.typeKind() == .None) {
                 try self.context.diagnostics.reportError(field_name.position, try std.fmt.allocPrint(self.allocator, "Field type isn't fully defined yet, you can't use it until it defined but you can use *{s}", .{struct_name_str}));
 
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             try fields_types.append(field_type);
@@ -987,7 +987,7 @@ pub const Parser = struct {
 
             if (enum_values_indexes.contains(enum_field_literal)) {
                 try self.context.diagnostics.reportError(enum_value.position, "Can't declare 2 elements with the same name");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (self.isCurrentKind(.Equal)) {
@@ -995,20 +995,20 @@ pub const Parser = struct {
                 const field_value = try self.parseExpression();
                 if (field_value.getAstNodeType() != ast.AstNodeType.Number) {
                     try self.context.diagnostics.reportError(enum_value.position, "Enum field explicit value must be integer expression");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 const number_expr = field_value.number_expression;
                 const number_value_token = number_expr.value;
                 if (tokenizer.isFloatNumberToken(number_value_token.kind)) {
                     try self.context.diagnostics.reportError(enum_value.position, "Enum field explicit value must be integer value not float");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 const explicit_value = try std.fmt.parseInt(u32, number_value_token.literal, 10);
                 if (explicit_values.contains(explicit_value)) {
                     try self.context.diagnostics.reportError(enum_value.position, try std.fmt.allocPrint(self.allocator, "There is also one enum field with explicit value '{d}'", .{explicit_value}));
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 try explicit_values.put(explicit_value, {});
@@ -1017,7 +1017,7 @@ pub const Parser = struct {
             } else {
                 if (has_explicit_values) {
                     try self.context.diagnostics.reportError(enum_value.position, "You must add explicit value to all enum fields or to no one");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
                 try enum_values_indexes.put(enum_field_literal, @intCast(index));
                 index += 1;
@@ -1078,7 +1078,7 @@ pub const Parser = struct {
             return self.allocReturn(ast.Statement, ast.Statement{ .defer_statement = ast.DeferStatement.init(expression) });
         }
         try self.context.diagnostics.reportError(defer_token.position, "defer keyword expect call expression");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseBreakStatement(self: *Self) Error!*ast.Statement {
@@ -1086,7 +1086,7 @@ pub const Parser = struct {
         const break_token = (try self.consumeKind(.Break, "Expect break keyword")).?;
         if (self.current_ast_scope != .Condition or self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1] == 0) {
             try self.context.diagnostics.reportError(break_token.position, "break keyword can only be used inside at last one while loop");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (self.isCurrentKind(.Semicolon)) {
@@ -1100,13 +1100,13 @@ pub const Parser = struct {
             const number_value = number_expr.value;
             if (number_value.kind == .Float or number_value.kind == .Float32 or number_value.kind == .Float64) {
                 try self.context.diagnostics.reportError(break_token.position, "expect break keyword times to be integer but found floating pointer value");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             const times_int = try std.fmt.parseInt(u32, number_value.literal, 10);
             if (times_int < 1) {
                 try self.context.diagnostics.reportError(break_token.position, "expect break times must be positive value and at last 1");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (times_int > self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1]) {
@@ -1114,7 +1114,7 @@ pub const Parser = struct {
                     break_token.position,
                     try std.fmt.allocPrint(self.allocator, "break times can't be bigger than the number of loops you have, expect less than or equals {d}", .{self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1]}),
                 );
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             try self.assertKind(.Semicolon, "Expect semicolon `;` after brea statement");
@@ -1122,7 +1122,7 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(break_token.position, "break keyword times must be a number");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseContinueStatement(self: *Self) Error!*ast.Statement {
@@ -1130,7 +1130,7 @@ pub const Parser = struct {
         const continue_token = (try self.consumeKind(.Continue, "Expect continue keyword")).?;
         if (self.current_ast_scope != .Condition or self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1] == 0) {
             try self.context.diagnostics.reportError(continue_token.position, "continue keyword can only be used inside at last one while loop");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (self.isCurrentKind(.Semicolon)) {
@@ -1145,13 +1145,13 @@ pub const Parser = struct {
             const number_kind = number_value.kind;
             if (number_kind == .Float or number_kind == .Float32 or number_kind == .Float64) {
                 try self.context.diagnostics.reportError(continue_token.position, "expect continue times to be integer but found floating pointer value");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             const times_int = try std.fmt.parseInt(u32, number_value.literal, 10);
             if (times_int < 1) {
                 try self.context.diagnostics.reportError(continue_token.position, "expect continue times must be positive value and at last 1");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (times_int > self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1]) {
@@ -1159,7 +1159,7 @@ pub const Parser = struct {
                     continue_token.position,
                     try std.fmt.allocPrint(self.allocator, "continue times can't be bigger than the number of loops you have, expect less than or equals {d}", .{self.loop_levels_stack.items[self.loop_levels_stack.items.len - 1]}),
                 );
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             try self.assertKind(.Semicolon, "Expect semicolon `;` after break statement");
@@ -1167,7 +1167,7 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(continue_token.position, "continue keyword times must be a number");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseIfStatement(self: *Self) Error!*ast.Statement {
@@ -1198,7 +1198,7 @@ pub const Parser = struct {
 
             if (has_else_branch) {
                 try self.context.diagnostics.reportError(else_token.position, "You already declared else branch");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             var true_value_token = else_token;
@@ -1239,7 +1239,7 @@ pub const Parser = struct {
         if (self.isCurrentKind(.Colon) or self.isCurrentKind(.Comma)) {
             if (expr.getAstNodeType() != .Literal) {
                 try self.context.diagnostics.reportError(for_token.position, "Optional named variable must be identifier");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (self.isCurrentKind(.Comma)) {
@@ -1258,7 +1258,7 @@ pub const Parser = struct {
         if (self.isCurrentKind(.DotDot)) {
             if (has_custom_index_name) {
                 try self.context.diagnostics.reportError(for_token.position, "for range has no index name to override");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             _ = try self.advancedToken();
@@ -1324,7 +1324,7 @@ pub const Parser = struct {
             if (self.isCurrentKind(.Else)) {
                 if (has_default_case) {
                     try self.context.diagnostics.reportError(switch_token.position, "Switch statementscan't has more than one default branch");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 const else_keyword = (try self.consumeKind(.Else, "Expect else keyword in switch defult branch")).?;
@@ -1541,7 +1541,7 @@ pub const Parser = struct {
                     const enum_values = enum_type.values;
                     if (!enum_values.contains(element.literal)) {
                         try self.context.diagnostics.reportError(element.position, try std.fmt.allocPrint(self.allocator, "Can't find element with name '{s}' in enum '{s}'", .{ element.literal, enum_name.literal }));
-                        return Error.Stop;
+                        return Error.ParsingError;
                     }
 
                     const index = enum_values.get(element.literal).?;
@@ -1549,11 +1549,11 @@ pub const Parser = struct {
                     return self.allocReturn(ast.Expression, ast.Expression{ .enum_access_expression = ast.EnumAccessExpression.init(element, enum_name, index, enum_element_type) });
                 } else {
                     try self.context.diagnostics.reportError(colons_token.position, try std.fmt.allocPrint(self.allocator, "Can't find enum declaration with name '{s}'", .{enum_name.literal}));
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
             } else {
                 try self.context.diagnostics.reportError(colons_token.position, "Expect identifier as Enum name");
-                return Error.Stop;
+                return Error.ParsingError;
             }
         }
 
@@ -1642,7 +1642,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(dot_token.position, "DotExpression `.` must followed by symnol or integer for struct or tuple access");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (self.isCurrentKind(.Smaller)) {
@@ -1723,7 +1723,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(attribute.position, "Unsupported attribute for enumeration type");
-                return Error.Stop;
+                return Error.ParsingError;
             }
         }
 
@@ -1990,7 +1990,7 @@ pub const Parser = struct {
             // Prevent declring else branch more than once
             if (has_else_branch) {
                 try self.context.diagnostics.reportError(self.peekCurrent().position, "else branch is declared twice in the same if expression");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             // parse `else` node
@@ -2024,7 +2024,7 @@ pub const Parser = struct {
                 if (has_default_branch) {
                     has_default_branch = true;
                     try self.context.diagnostics.reportError(switch_token.position, "Switch expression can't has more than one default branch");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 try self.assertKind(.Else, "Expect else keyword in switch defult branch");
@@ -2040,7 +2040,7 @@ pub const Parser = struct {
                         try self.advancedToken();
                     } else {
                         try self.context.diagnostics.reportError(self.peekCurrent().position, "In Switch Expression can't use `,` with no value before it");
-                        return Error.Stop;
+                        return Error.ParsingError;
                     }
                 }
 
@@ -2052,7 +2052,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(switch_token.position, "Switch case must be a number or enum element");
-                return Error.Stop;
+                return Error.ParsingError;
             }
             const cases_values_count = cases.items.len - values.items.len;
             try self.assertKind(.RightArrow, "Expect after branch value");
@@ -2065,7 +2065,7 @@ pub const Parser = struct {
 
         if (cases.items.len == 0) {
             try self.context.diagnostics.reportError(switch_token.position, "Switch expression must has at last one case and default case");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.assertKind(.CloseBrace, "Expect } after switch Statement last branch");
@@ -2191,7 +2191,7 @@ pub const Parser = struct {
             const op_kind = op_token.kind;
             if (!tokenizer.comparisonsOperators(op_kind)) {
                 try self.context.diagnostics.reportError(op_token.position, "Switch operator must be a comparions operators only");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             return op_kind;
@@ -2208,31 +2208,31 @@ pub const Parser = struct {
         // Check tht parameter name is not a built in primitive type
         if (primitiveTypes(literal) != null) {
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "primitives type can't be used as generic parameter name '{s}'", .{literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // Mke sure this name is not a struct name
         if (self.context.structures.contains(literal)) {
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "Struct name can't be used as generic parameter name '{s}'", .{literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // Mke sure this name is not an enum name
         if (self.context.enumerations.contains(literal)) {
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "Enum name can't be used as generic parameter name '{s}'", .{literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // Mke sure this name is unique and no alias use it
         if (self.context.type_alias_table.contains(literal)) {
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "You can't use alias as generic parameter name '{s}'", .{literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // Mke sure this generic parameter type is unique in this node
         self.generic_parameter_names.put(literal, {}) catch {
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "You already declared generic parameter with name '{s}'", .{literal}));
-            return Error.Stop;
+            return Error.ParsingError;
         };
     }
 
@@ -2240,17 +2240,17 @@ pub const Parser = struct {
         log("Checking Function Kind parameters Count", .{}, .{ .module = .Parser });
         if (kind == .Prefix and count != 1) {
             try self.context.diagnostics.reportError(span, "Prefix function must have exactly one parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (kind == .Infix and count != 2) {
             try self.context.diagnostics.reportError(span, "Infix function must have exactly Two parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         if (kind == .Postfix and count != 1) {
             try self.context.diagnostics.reportError(span, "Postfix function must have exactly one parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
     }
 
@@ -2272,7 +2272,7 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(position, "Value must be a compile time constants");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn unexpectedTokenError(self: *Self) !*ast.Expression {
@@ -2284,7 +2284,7 @@ pub const Parser = struct {
         // Specil error message for using undefined value in wrong place
         if (self.isCurrentKind(.Undefined)) {
             try self.context.diagnostics.reportError(position, "`---` used only in variable declaraion to represent an undefined value");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // Check if its  two tokens operators with space in the middle
@@ -2294,12 +2294,12 @@ pub const Parser = struct {
                 const correct = tokenizer.tokenKindLiteral(two_tokens_op.both);
                 const message = try std.fmt.allocPrint(self.allocator, "unexpected '{s}', do you means '{s}'", .{ unexpected, correct });
                 try self.context.diagnostics.reportError(position, message);
-                return Error.Stop;
+                return Error.ParsingError;
             }
         }
 
         try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "expected expression, found '{s}'", .{token_literal}));
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn checkUnnecessarySemicolonWarning(self: *Self) !void {
@@ -2330,7 +2330,7 @@ pub const Parser = struct {
             .Float64 => return .Float64,
             else => {
                 try self.context.diagnostics.reportError(self.peekCurrent().position, "Token kind is not a number");
-                return Error.Stop;
+                return Error.ParsingError;
             },
         }
     }
@@ -2404,7 +2404,7 @@ pub const Parser = struct {
 
         if (scanned_token.kind == .Invalid) {
             try self.context.diagnostics.reportError(scanned_token.position, scanned_token.literal);
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         self.previous_token = self.current_token;
@@ -2449,7 +2449,7 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(self.peekCurrent().position, message);
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn assertKind(self: *Self, kind: TokenKind, message: []const u8) !void {
@@ -2463,7 +2463,7 @@ pub const Parser = struct {
             location = self.peekPrevious().position;
         }
         try self.context.diagnostics.reportError(location, message);
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn isRightShiftOperator(self: *Self, first: Token, second: Token) bool {
@@ -2543,7 +2543,7 @@ pub const Parser = struct {
 
         if (field_types.items.len < 2) {
             try self.context.diagnostics.reportError(paren.position, "Tuple type must has at least 2 types");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         var tuple_type = try self.allocReturn(types.Type, Type{ .Tuple = types.TupleType.init(paren.literal, field_types) });
@@ -2576,19 +2576,19 @@ pub const Parser = struct {
 
         if (self.isCurrentKind(.CloseBracket)) {
             try self.context.diagnostics.reportError(self.peekCurrent().position, "Fixed array type must have implicit size [n]");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         const size_expression = try self.parseExpression();
         if (size_expression.getAstNodeType() != ast.AstNodeType.Number) {
             try self.context.diagnostics.reportError(self.peekCurrent().position, "Array size must be an integer constants");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         const size = size_expression; //.number_expression;
         if (!types.isIntegerType(size.getTypeNode().?)) {
             try self.context.diagnostics.reportError(self.peekCurrent().position, "Array size must be an integer constants");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.assertKind(.CloseBracket, "Expect ] after array size");
@@ -2597,7 +2597,7 @@ pub const Parser = struct {
         // Check if rray element type is not void
         if (element_type.typeKind() == .Void) {
             try self.context.diagnostics.reportError(self.peekCurrent().position, "Can't declare array with incomplete type 'void'");
-            return Error.Stop;
+            return Error.ParsingError;
         }
         const number_value = try std.fmt.parseInt(u32, size.number_expression.value.literal, 10);
         return self.allocReturn(types.Type, Type{ .StaticArray = types.StaticArrayType.init(element_type, number_value, null) });
@@ -2610,7 +2610,7 @@ pub const Parser = struct {
         // Report useful message when user create pointer type with prefix `*` like in C
         if (self.isCurrentKind(.String)) {
             try self.context.diagnostics.reportError(self.peekPrevious().position, try std.fmt.allocPrint(self.allocator, "In pointer type `*` must be before the type like *{s}", .{try types.getTypeLiteral(self.allocator, type_)}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         return type_;
@@ -2629,7 +2629,7 @@ pub const Parser = struct {
                 // Prevent use non generic struct type with ny type parameters
                 if (!struct_type.is_generic) {
                     try self.context.diagnostics.reportError(smaller_token.position, "Non generic struct type don't accept any types parameters");
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 const generic_parameters = try self.parseGenericArgumentsIfExists();
@@ -2637,14 +2637,14 @@ pub const Parser = struct {
                 // Mke sure generic struct types is used with correct number of parameters
                 if (struct_type.generic_parameters.items.len != generic_parameters.items.len) {
                     try self.context.diagnostics.reportError(smaller_token.position, try std.fmt.allocPrint(self.allocator, "Invalid number of generic parameters expect {d} but got {d}", .{ struct_type.generic_parameters.items.len, generic_parameters.items.len }));
-                    return Error.Stop;
+                    return Error.ParsingError;
                 }
 
                 return self.allocReturn(Type, Type{ .GenericStruct = types.GenericStructType{ .struct_type = try self.allocReturn(types.StructType, struct_type), .parameters = generic_parameters } });
             }
 
             try self.context.diagnostics.reportError(self.peekPrevious().position, "Only structures can accept generic parameters");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         // ssert that generic structs types must be created with parameters types
@@ -2653,7 +2653,7 @@ pub const Parser = struct {
             if (struct_type.is_generic) {
                 const struct_name = self.peekPrevious();
                 try self.context.diagnostics.reportError(struct_name.position, try std.fmt.allocPrint(self.allocator, "Generic struct type must be used with parameters types '{s}<..>'", .{struct_name.literal}));
-                return Error.Stop;
+                return Error.ParsingError;
             }
         }
 
@@ -2669,11 +2669,11 @@ pub const Parser = struct {
         // Show helpful dignostic error message for varargs case
         if (self.isCurrentKind(.Varargs)) {
             try self.context.diagnostics.reportError(self.peekCurrent().position, "Varargs not supported as function pointer parameter");
-            return Error.Stop;
+            return Error.ParsingError;
         }
 
         try self.context.diagnostics.reportError(self.peekCurrent().position, "Expected type name");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseIdentifierType(self: *Self) Error!*Type {
@@ -2715,7 +2715,7 @@ pub const Parser = struct {
 
         // This type is not permitive, structure or enumerations
         try self.context.diagnostics.reportError(symbol_token.position, try std.fmt.allocPrint(self.allocator, "Cannot find type '{s}'", .{type_literal}));
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseDeclarationsDirective(self: *Self) Error!*ast.Statement {
@@ -2753,7 +2753,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(token.position, "prefix keyword used only for function and operators");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (std.mem.eql(u8, directive_name, "infix")) {
@@ -2769,7 +2769,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(token.position, "infix keyword used only for function and operators");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (std.mem.eql(u8, directive_name, "postfix")) {
@@ -2784,7 +2784,7 @@ pub const Parser = struct {
                 }
 
                 try self.context.diagnostics.reportError(token.position, "postfix keyword used only for function and operators");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             if (std.mem.eql(u8, directive_name, "packed")) {
@@ -2793,10 +2793,10 @@ pub const Parser = struct {
             }
 
             try self.context.diagnostics.reportError(position, try std.fmt.allocPrint(self.allocator, "No declarations directive with name '{s}'", .{directive_name}));
-            return Error.Stop;
+            return Error.ParsingError;
         }
         try self.context.diagnostics.reportError(position, "Expected identifier as directive name");
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseStatementsDirective(self: *Self) Error!*ast.Statement {
@@ -2809,7 +2809,7 @@ pub const Parser = struct {
             const statement = try self.parseStatement();
             if (statement.getAstNodeType() != .SwitchStatement) {
                 try self.context.diagnostics.reportError(directive.position, "@complete expect switch statement");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             var switch_node = statement.switch_statement;
@@ -2818,7 +2818,7 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(directive.position, try std.fmt.allocPrint(self.allocator, "No statement directive with name '{s}'", .{directive_name}));
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseExpressionsDirective(self: *Self) Error!*ast.Expression {
@@ -2861,7 +2861,7 @@ pub const Parser = struct {
             const expression = try self.parseExpression();
             if (expression.getAstNodeType() != .Array) {
                 try self.context.diagnostics.reportError(self.peekPrevious().position, "Expect Array expression after @vec");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             const array = try self.allocReturn(ast.ArrayExpression, expression.array_expression);
@@ -2875,7 +2875,7 @@ pub const Parser = struct {
 
             if (type_.typeKind() != .Number) {
                 try self.context.diagnostics.reportError(self.peekPrevious().position, "@max_value expect only number types");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             const number_type = type_.Number;
@@ -2904,7 +2904,7 @@ pub const Parser = struct {
 
             if (type_.typeKind() != .Number) {
                 try self.context.diagnostics.reportError(self.peekPrevious().position, "@min_value expect only number types");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             const number_type = type_.Number;
@@ -2939,7 +2939,7 @@ pub const Parser = struct {
 
         try self.context.diagnostics.reportError(directive.position, try std.fmt.allocPrint(self.allocator, "No expression directive with name '{s}'", .{directive_name}));
 
-        return Error.Stop;
+        return Error.ParsingError;
     }
 
     fn parseTypesDirective(self: *Self) Error!*types.Type {
@@ -2952,7 +2952,7 @@ pub const Parser = struct {
             const type_ = try self.parseType();
             if (type_.typeKind() != .StaticArray) {
                 try self.context.diagnostics.reportError(self.peekPrevious().position, "Expect array type after @vec");
-                return Error.Stop;
+                return Error.ParsingError;
             }
 
             // var array_type = type_.StaticArray;
@@ -2961,6 +2961,6 @@ pub const Parser = struct {
         }
 
         try self.context.diagnostics.reportError(directive.position, try std.fmt.allocPrint(self.allocator, "No types directive with name '{s}'", .{directive_name}));
-        return Error.Stop;
+        return Error.ParsingError;
     }
 };

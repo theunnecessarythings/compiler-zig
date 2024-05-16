@@ -42,6 +42,7 @@ pub const DiagnosticLevel = enum {
 };
 
 pub const Error = error{
+    ParsingError,
     NotImplemented,
     NotFound,
     SocketNotConnected,

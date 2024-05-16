@@ -457,9 +457,9 @@ pub const Tokenizer = struct {
             },
             '^' => {
                 if (try self.match('=')) {
-                    return self.buildToken(.OrEqual);
+                    return self.buildToken(.XorEqual);
                 }
-                return self.buildToken(.Or);
+                return self.buildToken(.Xor);
             },
             '+' => {
                 if (try self.match('+')) {
@@ -892,6 +892,9 @@ pub const Tokenizer = struct {
     }
 
     fn peek(self: *Self) u8 {
+        if (self.current_position >= self.source_length) {
+            return 0;
+        }
         return self.source[self.current_position];
     }
 
@@ -934,7 +937,7 @@ pub const Tokenizer = struct {
     }
 
     fn binaryToDecimal(binary: []const u8) !i64 {
-        const integer = try std.fmt.parseInt(i64, binary, 10);
+        const integer = try std.fmt.parseInt(i64, binary, 2);
         return integer;
     }
 

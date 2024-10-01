@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "amun-zig",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = .{ .cwd_relative = "src/main.zig" },
         .target = target,
         .optimize = optimize,
     });
@@ -18,10 +18,10 @@ pub fn build(b: *std.Build) void {
     switch (target.result.os.tag) {
         .linux => {
             exe.linkSystemLibrary("LLVM-14");
-            exe.addIncludePath(.{ .path = "/usr/lib/llvm-14/include/" });
+            exe.addIncludePath(.{ .cwd_relative = "/usr/lib/llvm-14/include/" });
         },
         .macos => {
-            exe.addLibraryPath(.{ .path = "/usr/local/opt/llvm/lib" });
+            exe.addLibraryPath(.{ .cwd_relative = "/usr/local/opt/llvm/lib" });
             exe.linkSystemLibrary("LLVM");
         },
         else => exe.linkSystemLibrary("LLVM"),
@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     const unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/test_main.zig" },
+        .root_source_file = .{ .cwd_relative = "src/test_main.zig" },
         .target = target,
         .optimize = optimize,
     });

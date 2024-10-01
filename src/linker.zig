@@ -40,7 +40,7 @@ pub const ExternalLinker = struct {
         try linker_command_builder.append("-o");
         try linker_command_builder.append(object_file_path[0 .. object_file_path.len - 2]);
 
-        const result = std.ChildProcess.run(.{
+        const result = std.process.Child.run(.{
             .allocator = self.allocator,
             .argv = linker_command_builder.items,
         }) catch |err| {
@@ -73,7 +73,7 @@ pub const ExternalLinker = struct {
     }
 
     fn findProgramByName(allocator: std.mem.Allocator, program_name: []const u8) ![]const u8 {
-        const result = try std.ChildProcess.run(.{
+        const result = try std.process.Child.run(.{
             .allocator = allocator,
             .argv = &[_][]const u8{ "which", program_name },
         });
